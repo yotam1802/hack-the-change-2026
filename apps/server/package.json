@@ -1,0 +1,36 @@
+{
+  "name": "@waitwatch/server",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@aws-sdk/client-apigatewaymanagementapi": "^3.716.0",
+    "@aws-sdk/client-cloudwatch": "^3.716.0",
+    "@aws-sdk/client-dynamodb": "^3.716.0",
+    "@aws-sdk/client-kinesis": "^3.716.0",
+    "@aws-sdk/client-sqs": "^3.716.0",
+    "@aws-sdk/lib-dynamodb": "^3.716.0",
+    "@electric-sql/pglite": "^0.2.17",
+    "@google/genai": "^1.0.0",
+    "@waitwatch/shared": "*",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "pg": "^8.13.1",
+    "pino": "^9.6.0",
+    "ws": "^8.18.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/pg": "^8.11.10",
+    "@types/ws": "^8.5.13",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.4"
+  }
+}

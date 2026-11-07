@@ -1,0 +1,13 @@
+@import "tailwindcss";
+
+body {
+  margin: 0;
+  background: #10151b;
+  color: #e7eef6;
+  font-family: "Avenir Next", "Segoe UI", sans-serif;
+}
+
+@keyframes pulse-border {
+  50% { box-shadow: 0 0 0 2px #ef4444; }
+}
+.urgent-tile { animation: pulse-border 1.2s ease-in-out infinite; }

@@ -1,0 +1,18 @@
+{
+  "name": "waitwatch",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*",
+    "infra"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,sim,ui -c blue,green,magenta \"npm run dev -w @waitwatch/server\" \"npm run dev -w @waitwatch/simulator\" \"npm run dev -w @waitwatch/dashboard\"",
+    "test": "npm run test -w @waitwatch/server",
+    "load": "npm run load -w @waitwatch/simulator --",
+    "synth": "npm run synth -w @waitwatch/infra"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

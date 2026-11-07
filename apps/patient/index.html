@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>You are being monitored</title>
+    <style>
+      body { font-family: "Avenir Next", "Segoe UI", sans-serif; background: #10151b; color: #e7eef6; margin: 0; }
+      main { max-width: 28rem; margin: 0 auto; padding: 2rem 1.2rem; }
+      button { border: 0; border-radius: 0.4rem; padding: 0.7rem 1rem; color: white; }
+      input[type="range"] { width: 100%; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1 id="hello">Your visit</h1>
+      <p id="message">Loading…</p>
+      <label>Pain right now: <span id="pain-label">4</span>
+        <input id="pain" type="range" min="0" max="10" value="4" />
+      </label>
+      <p>
+        <button id="pain-btn" style="background:#0369a1">Send pain score</button>
+        <button id="worse" style="background:#b45309">I feel worse</button>
+      </p>
+      <p id="sent"></p>
+    </main>
+    <script>
+      const params = new URLSearchParams(location.search);
+      const code = (params.get("code") || location.hash.replace("#", "")).toUpperCase();
+      const api = params.get("api") || "http://127.0.0.1:8787";
+      const pain = document.getElementById("pain");
+      pain.oninput = () => { document.getElementById("pain-label").textContent = pain.value; };
+      fetch(api + "/api/public/patients/" + code).then(async (res) => {
+        if (!res.ok) throw new Error("missing");
+        const body = await res.json();
+        document.getElementById("hello").textContent = "Hello " + body.displayName;
+        document.getElementById("message").textContent = body.message;
+      }).catch(() => {
+        document.getElementById("message").textContent = "We could not find that code. Ask the triage nurse.";
+      });
+      async function send(feelWorse) {
+        const res = await fetch(api + "/api/public/reports", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ code, pain: Number(pain.value), feelWorse })
+        });
+        document.getElementById("sent").textContent = res.ok ? "Sent to the waiting-room nurse." : "Could not send. Please tell a nurse.";
+      }
+      document.getElementById("pain-btn").onclick = () => send(false);
+      document.getElementById("worse").onclick = () => send(true);
+    </script>
+  </body>
+</html>
