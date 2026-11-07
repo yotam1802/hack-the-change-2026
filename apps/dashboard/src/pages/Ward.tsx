@@ -202,7 +202,7 @@ function Panel({ patient, onChanged, onClose }: { patient: PatientView | null; o
         <textarea className="input" rows={2} value={form.note} onChange={update("note")} />
       </label>
 
-      {error && <p className="mt-3 text-sm text-red-300">{error}</p>}
+      {error && <p className="mt-3 whitespace-pre-line text-sm text-red-300">{error}</p>}
 
       <div className="mt-5 space-y-2">
         <button disabled={busy} className="btn btn-primary w-full" onClick={() => act("reassessed_no_change")}>Reassessed, no change</button>

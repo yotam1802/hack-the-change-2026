@@ -18,13 +18,59 @@ export function setNurseId(id: string) {
   localStorage.setItem(NURSE_KEY, id);
 }
 
+const FIELD_LABELS: Record<string, string> = {
+  displayName: "Name",
+  ctas: "CTAS",
+  enrollmentReason: "Reason",
+  deviceId: "Wearable",
+  note: "Note",
+  "vitals.tempC": "Temperature",
+  "vitals.pain": "Pain",
+  "vitals.sbp": "Systolic",
+  "vitals.dbp": "Diastolic",
+  "vitals.respRate": "Respiratory rate",
+};
+
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   if (init.body && !headers.has("content-type")) headers.set("content-type", "application/json");
   headers.set("x-nurse-id", nurseId());
   const res = await fetch(path, { ...init, headers });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) throw new Error(formatApiError(await res.text()));
   return res.json() as Promise<T>;
+}
+
+/** Turn the server's validation payload into one line per field. */
+function formatApiError(raw: string): string {
+  let body: unknown;
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    return raw;
+  }
+  const error = (body as { error?: unknown }).error;
+  if (typeof error === "string") return error === "internal" ? "Something went wrong. Try again." : error;
+  if (!Array.isArray(error)) return raw;
+
+  const lines = new Map<string, string[]>();
+  for (const item of error) {
+    if (!item || typeof item !== "object" || !("message" in item)) continue;
+    const field = "field" in item ? String(item.field) : "";
+    const label = FIELD_LABELS[field] ?? "";
+    const messages = lines.get(label) ?? [];
+    messages.push(plainMessage(String(item.message)));
+    lines.set(label, messages);
+  }
+  const text = [...lines.entries()].map(([label, messages]) => (label ? `${label}: ${messages.join(" ")}` : messages.join(" ")));
+  return text.length ? text.join("\n") : raw;
+}
+
+function plainMessage(message: string): string {
+  if (message.startsWith("Expected number")) return "Enter a number.";
+  if (message.startsWith("Expected integer")) return "Enter a whole number.";
+  if (message.startsWith("Number must be greater than or equal to ")) return `Must be at least ${message.slice(message.lastIndexOf(" ") + 1)}.`;
+  if (message.startsWith("Number must be less than or equal to ")) return `Must be at most ${message.slice(message.lastIndexOf(" ") + 1)}.`;
+  return message.endsWith(".") ? message : `${message}.`;
 }
 
 export function formatRemaining(target: number, now: number) {

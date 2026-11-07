@@ -49,7 +49,7 @@ export function Enroll() {
       <h1 className="text-xl font-semibold">Enroll a patient</h1>
       <p className="mt-1 text-sm text-fg-muted">For patients who need watching while they wait: chest pain, abnormal labs, shortness of breath, or another reason you record.</p>
       <form onSubmit={submit} className="mt-6 space-y-4">
-        {error && <p className="text-sm text-red-300">{error}</p>}
+        {error && <p className="whitespace-pre-line text-sm text-red-300">{error}</p>}
         <label className="field">Name
           <input required autoFocus className="input" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
         </label>

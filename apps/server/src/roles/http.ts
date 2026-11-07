@@ -316,7 +316,12 @@ export function createApp(deps: HttpDeps) {
 
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
     if (err instanceof ZodError) {
-      res.status(400).json({ error: err.flatten() });
+      res.status(400).json({
+        error: err.issues.map((issue) => ({
+          field: issue.path.join("."),
+          message: issue.message,
+        })),
+      });
       return;
     }
     log.error({ err }, "request failed");
