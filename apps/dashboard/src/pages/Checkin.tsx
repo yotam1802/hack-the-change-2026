@@ -31,17 +31,23 @@ export function Checkin() {
   }
 
   return (
-    <div className="mx-auto max-w-md space-y-4 p-6">
-      <h1 className="text-xl font-semibold">{name ? `Hello ${name}` : "Your visit"}</h1>
-      <p>{message}</p>
-      <label className="block text-sm">Pain right now: {pain}
-        <input className="mt-1 w-full" type="range" min={0} max={10} value={pain} onChange={(e) => setPain(Number(e.target.value))} />
-      </label>
-      <div className="flex gap-2">
-        <button className="rounded bg-sky-700 px-3 py-2 text-sm" onClick={() => send(false)}>Send pain score</button>
-        <button className="rounded bg-amber-700 px-3 py-2 text-sm" onClick={() => send(true)}>I feel worse</button>
+    <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center p-6">
+      <div className="card p-6">
+        <h1 className="text-2xl font-semibold tracking-tight">{name ? `Hello ${name}` : "Your visit"}</h1>
+        <p className="mt-2 text-sm leading-relaxed text-fg-muted">{message}</p>
+        <div className="mt-6">
+          <div className="flex items-baseline justify-between">
+            <span className="text-sm font-medium">Pain right now</span>
+            <span className="text-3xl font-semibold tabular-nums">{pain}<span className="text-sm text-fg-faint"> / 10</span></span>
+          </div>
+          <input className="mt-2 w-full accent-sky-400" type="range" min={0} max={10} value={pain} onChange={(e) => setPain(Number(e.target.value))} />
+        </div>
+        <div className="mt-6 grid grid-cols-2 gap-2">
+          <button className="btn btn-primary py-3" onClick={() => send(false)}>Send pain score</button>
+          <button className="btn btn-amber py-3" onClick={() => send(true)}>I feel worse</button>
+        </div>
+        {sent && <p className="mt-4 text-center text-sm text-emerald-300">{sent}</p>}
       </div>
-      {sent && <p className="text-sm text-emerald-300">{sent}</p>}
     </div>
   );
 }

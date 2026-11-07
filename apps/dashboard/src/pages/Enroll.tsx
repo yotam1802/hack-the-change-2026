@@ -45,35 +45,39 @@ export function Enroll() {
   }
 
   return (
-    <form onSubmit={submit} className="mx-auto max-w-lg space-y-3 p-6">
-      <h1 className="text-xl font-semibold">Enroll at triage</h1>
-      <p className="text-sm text-slate-400">Only patients who need watching get a wearable: chest pain, abnormal labs, shortness of breath, or another reason you record.</p>
-      {error && <p className="text-sm text-red-300">{error}</p>}
-      <label className="block text-sm">Name
-        <input required className="mt-1 w-full rounded bg-slate-800 px-2 py-1" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
-      </label>
-      <label className="block text-sm">CTAS
-        <select className="mt-1 w-full rounded bg-slate-800 px-2 py-1" value={ctas} onChange={(e) => setCtas(e.target.value)}>
-          {[1, 2, 3, 4, 5].map((level) => <option key={level} value={level}>{level}</option>)}
-        </select>
-      </label>
-      <label className="block text-sm">Reason
-        <select className="mt-1 w-full rounded bg-slate-800 px-2 py-1" value={reason} onChange={(e) => setReason(e.target.value)}>
-          <option value="chest_pain">Chest pain</option>
-          <option value="abnormal_labs">Abnormal labs</option>
-          <option value="sob">Shortness of breath</option>
-          <option value="other">Other</option>
-        </select>
-      </label>
-      <label className="block text-sm">Wearable
-        <select className="mt-1 w-full rounded bg-slate-800 px-2 py-1" value={deviceId} onChange={(e) => setDeviceId(e.target.value)}>
-          {devices.map((device) => <option key={device.id} value={device.id} disabled={device.paired}>{device.id}{device.paired ? " (in use)" : ""}</option>)}
-        </select>
-      </label>
-      <label className="block text-sm">Official temperature °C
-        <input className="mt-1 w-full rounded bg-slate-800 px-2 py-1" value={tempC} onChange={(e) => setTempC(e.target.value)} />
-      </label>
-      <button className="rounded bg-sky-700 px-3 py-2 text-sm">Pair device</button>
-    </form>
+    <div className="mx-auto max-w-md p-6">
+      <h1 className="text-2xl font-semibold tracking-tight">Enroll at triage</h1>
+      <p className="mt-1 text-sm text-fg-muted">Only patients who need watching get a wearable: chest pain, abnormal labs, shortness of breath, or another reason you record.</p>
+      <form onSubmit={submit} className="card mt-5 space-y-4 p-5">
+        {error && <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">{error}</p>}
+        <label className="field">Name
+          <input required autoFocus className="input" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+        </label>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="field">CTAS
+            <select className="input mt-1" value={ctas} onChange={(e) => setCtas(e.target.value)}>
+              {[1, 2, 3, 4, 5].map((level) => <option key={level} value={level}>CTAS {level}</option>)}
+            </select>
+          </label>
+          <label className="field">Official temperature °C
+            <input className="input" inputMode="decimal" value={tempC} onChange={(e) => setTempC(e.target.value)} />
+          </label>
+        </div>
+        <label className="field">Reason
+          <select className="input mt-1" value={reason} onChange={(e) => setReason(e.target.value)}>
+            <option value="chest_pain">Chest pain</option>
+            <option value="abnormal_labs">Abnormal labs</option>
+            <option value="sob">Shortness of breath</option>
+            <option value="other">Other</option>
+          </select>
+        </label>
+        <label className="field">Wearable
+          <select className="input mt-1" value={deviceId} onChange={(e) => setDeviceId(e.target.value)}>
+            {devices.map((device) => <option key={device.id} value={device.id} disabled={device.paired}>{device.id}{device.paired ? " · in use" : ""}</option>)}
+          </select>
+        </label>
+        <button className="btn btn-primary w-full">Pair device</button>
+      </form>
+    </div>
   );
 }

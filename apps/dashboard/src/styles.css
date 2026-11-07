@@ -1,13 +1,74 @@
 @import "tailwindcss";
 
-body {
-  margin: 0;
-  background: #10151b;
-  color: #e7eef6;
-  font-family: "Avenir Next", "Segoe UI", sans-serif;
+@theme {
+  --color-ink: #0b0f14;
+  --color-panel: #121821;
+  --color-panel-2: #1a222e;
+  --color-line: #222c3a;
+  --color-fg: #e8eef5;
+  --color-fg-muted: #8b98a8;
+  --color-fg-faint: #5b6878;
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
-@keyframes pulse-border {
-  50% { box-shadow: 0 0 0 2px #ef4444; }
+html {
+  color-scheme: dark;
 }
-.urgent-tile { animation: pulse-border 1.2s ease-in-out infinite; }
+
+body {
+  margin: 0;
+  background: var(--color-ink);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  font-feature-settings: "cv11", "ss01", "tnum";
+  -webkit-font-smoothing: antialiased;
+}
+
+.card {
+  @apply rounded-2xl border border-line bg-panel;
+}
+
+.input {
+  @apply w-full rounded-lg border border-line bg-ink/60 px-3 py-2 text-sm text-fg outline-none transition placeholder:text-fg-faint focus:border-sky-500/60 focus:ring-2 focus:ring-sky-500/20;
+}
+
+.field {
+  @apply block text-xs font-medium text-fg-muted;
+}
+.field > .input,
+.field > textarea.input {
+  @apply mt-1;
+}
+
+.btn {
+  @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50;
+}
+.btn-primary {
+  @apply bg-sky-500 text-ink hover:bg-sky-400;
+}
+.btn-ghost {
+  @apply border border-line bg-panel-2 text-fg hover:border-fg-faint/50;
+}
+.btn-emerald {
+  @apply bg-emerald-500 text-ink hover:bg-emerald-400;
+}
+.btn-amber {
+  @apply bg-amber-400 text-ink hover:bg-amber-300;
+}
+
+@keyframes pulse-ring {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0); }
+  50% { box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.55); }
+}
+.urgent-tile {
+  animation: pulse-ring 1.4s ease-in-out infinite;
+  border-color: rgba(244, 63, 94, 0.5);
+}
+
+@keyframes live-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.live-dot {
+  animation: live-dot 1.6s ease-in-out infinite;
+}
