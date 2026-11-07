@@ -3,7 +3,13 @@ import { Link, useParams } from "react-router-dom";
 import { CartesianGrid, Line, LineChart, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { REASON_LABEL, type PatientView, type PromptView } from "@waitwatch/shared";
 import { api } from "../api";
-import { CtasChip, SeverityDot } from "../ui";
+import { CtasLabel } from "../ui";
+
+const SEVERITY_COLOR: Record<PromptView["severity"], string> = {
+  urgent: "#f87171",
+  warning: "#facc15",
+  info: "#6b7480",
+};
 
 type Timeline = {
   patient: PatientView;
@@ -54,76 +60,68 @@ export function PatientPage() {
   const { patient } = data;
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 p-6">
+    <div className="mx-auto max-w-5xl space-y-8 px-6 py-8">
       <div>
-        <Link to="/" className="text-xs text-fg-muted hover:text-fg">← Monitor</Link>
-        <div className="mt-2 flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight">{patient.displayName}</h1>
-          <CtasChip level={patient.ctas} />
-          <span className="text-sm text-fg-muted">{REASON_LABEL[patient.enrollmentReason]}</span>
-        </div>
-        <p className="mt-1 text-sm text-fg-muted">Retrospective review. Skin temperature is approximate; SpO₂ in this build is simulated.</p>
+        <Link to="/" className="text-sm text-fg-muted hover:text-fg">← Waiting room</Link>
+        <h1 className="mt-3 text-xl font-semibold">{patient.displayName}</h1>
+        <p className="mt-1 flex flex-wrap items-center gap-x-3 text-sm text-fg-muted">
+          <CtasLabel level={patient.ctas} />
+          <span>{REASON_LABEL[patient.enrollmentReason]}</span>
+        </p>
       </div>
 
-      <section className="card p-5">
+      <section>
         <div className="mb-3 flex flex-wrap items-baseline justify-between gap-3">
-          <h2 className="text-sm font-semibold">Heart rate</h2>
-          <div className="flex items-center gap-4 text-xs text-fg-muted">
-            <span className="flex items-center gap-1.5"><span className="h-0.5 w-4 bg-sky-400" />Heart rate</span>
-            {chart.baseline && <span className="flex items-center gap-1.5"><span className="h-0.5 w-4 border-t border-dashed border-amber-300" />Baseline {Math.round(chart.baseline)} bpm</span>}
-            {chart.baseline && <span className="flex items-center gap-1.5"><span className="h-3 w-4 rounded-sm bg-emerald-400/15" />±10 bpm band</span>}
-          </div>
+          <h2 className="text-sm font-medium">Heart rate</h2>
+          {chart.baseline && <span className="text-sm text-fg-muted">Baseline {Math.round(chart.baseline)} bpm, shaded ±10</span>}
         </div>
-        <div className="h-72">
+        <div className="card h-72 p-4">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chart.points} margin={{ top: 8, right: 8, bottom: 0, left: -12 }}>
-              <CartesianGrid stroke="#1c2531" vertical={false} />
-              <XAxis dataKey="ts" type="number" domain={["dataMin", "dataMax"]} scale="time" tickFormatter={time} minTickGap={64} stroke="#2a3542" tick={{ fill: "#8b98a8", fontSize: 11 }} tickLine={false} />
-              <YAxis domain={chart.domain} ticks={chart.ticks} stroke="#2a3542" tick={{ fill: "#8b98a8", fontSize: 11 }} tickLine={false} axisLine={false} width={44} />
+              <CartesianGrid stroke="#262d36" vertical={false} />
+              <XAxis dataKey="ts" type="number" domain={["dataMin", "dataMax"]} scale="time" tickFormatter={time} minTickGap={64} stroke="#262d36" tick={{ fill: "#9aa3ad", fontSize: 12 }} tickLine={false} />
+              <YAxis domain={chart.domain} ticks={chart.ticks} stroke="#262d36" tick={{ fill: "#9aa3ad", fontSize: 12 }} tickLine={false} axisLine={false} width={44} />
               <Tooltip
                 labelFormatter={(value) => time(Number(value))}
                 formatter={(value) => [`${value} bpm`, "Heart rate"]}
-                contentStyle={{ background: "#121821", border: "1px solid #222c3a", borderRadius: 8, fontSize: 12 }}
-                labelStyle={{ color: "#8b98a8" }}
-                itemStyle={{ color: "#e8eef5" }}
+                contentStyle={{ background: "#161b21", border: "1px solid #262d36", borderRadius: 6, fontSize: 12 }}
+                labelStyle={{ color: "#9aa3ad" }}
+                itemStyle={{ color: "#e6e9ed" }}
               />
-              {chart.baseline && <ReferenceArea y1={chart.baseline - 10} y2={chart.baseline + 10} fill="#34d399" fillOpacity={0.08} strokeOpacity={0} />}
-              {chart.baseline && <ReferenceLine y={chart.baseline} stroke="#fbbf24" strokeDasharray="4 4" strokeOpacity={0.8} />}
-              <Line type="monotone" dataKey="bpm" stroke="#38bdf8" strokeWidth={2} dot={false} isAnimationActive={false} connectNulls={false} name="Heart rate" />
+              {chart.baseline && <ReferenceArea y1={chart.baseline - 10} y2={chart.baseline + 10} fill="#9aa3ad" fillOpacity={0.08} strokeOpacity={0} />}
+              {chart.baseline && <ReferenceLine y={chart.baseline} stroke="#9aa3ad" strokeDasharray="4 4" />}
+              <Line type="monotone" dataKey="bpm" stroke="#e6e9ed" strokeWidth={1.5} dot={false} isAnimationActive={false} connectNulls={false} name="Heart rate" />
             </LineChart>
           </ResponsiveContainer>
         </div>
       </section>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-8 md:grid-cols-2">
         <Section title="Prompts" count={data.prompts.length}>
           {data.prompts.map((prompt) => (
-            <li key={prompt.id} className="flex items-start gap-2.5 py-2">
-              <SeverityDot severity={prompt.severity} />
+            <li key={prompt.id} className="flex items-start gap-3 py-2">
               <span className="w-16 shrink-0 tabular-nums text-fg-faint">{time(prompt.createdAt)}</span>
-              <span className="leading-snug">{prompt.message}</span>
+              <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: SEVERITY_COLOR[prompt.severity] }} />
+              <span>{prompt.message}</span>
             </li>
           ))}
         </Section>
-        <div className="space-y-6">
-          <Section title="Nurse-recorded vitals" count={data.vitals.length}>
+        <div className="space-y-8">
+          <Section title="Vitals recorded by staff" count={data.vitals.length}>
             {data.vitals.map((row, index) => (
-              <li key={index} className="flex items-center gap-2.5 py-2">
+              <li key={index} className="flex items-baseline gap-3 py-2">
                 <span className="w-16 shrink-0 tabular-nums text-fg-faint">{time(row.ts_ms)}</span>
                 <span className="text-fg-muted">{row.nurse_id}</span>
-                <span className="ml-auto tabular-nums">temp {row.temp_c ?? "—"}°C · pain {row.pain ?? "—"}</span>
+                <span className="ml-auto tabular-nums">Temp {row.temp_c ?? "—"} °C, pain {row.pain ?? "—"}</span>
               </li>
             ))}
           </Section>
-          <Section title="Audit" count={data.audits.length}>
+          <Section title="Actions" count={data.audits.length}>
             {data.audits.map((row, index) => (
-              <li key={index} className="flex items-center gap-2.5 py-2">
+              <li key={index} className="flex items-baseline gap-3 py-2">
                 <span className="w-16 shrink-0 tabular-nums text-fg-faint">{time(row.ts_ms)}</span>
                 <span className="text-fg-muted">{row.nurse_id}</span>
-                <span className="ml-auto">{row.action.replaceAll("_", " ")}</span>
-                {row.on_time != null && (
-                  <span className={`rounded-md px-1.5 py-0.5 text-[11px] ${row.on_time ? "bg-emerald-500/10 text-emerald-300" : "bg-amber-400/15 text-amber-200"}`}>{row.on_time ? "on time" : "late"}</span>
-                )}
+                <span className="ml-auto">{row.action.replaceAll("_", " ")}{row.on_time == null ? "" : row.on_time ? " (on time)" : " (late)"}</span>
               </li>
             ))}
           </Section>
@@ -135,12 +133,9 @@ export function PatientPage() {
 
 function Section({ title, count, children }: { title: string; count: number; children: ReactNode }) {
   return (
-    <section className="card p-5">
-      <div className="flex items-baseline justify-between">
-        <h2 className="text-sm font-semibold">{title}</h2>
-        <span className="text-xs tabular-nums text-fg-faint">{count}</span>
-      </div>
-      <ul className="mt-2 max-h-80 divide-y divide-line overflow-y-auto text-sm">
+    <section>
+      <h2 className="text-sm font-medium">{title}</h2>
+      <ul className="mt-2 max-h-80 divide-y divide-line overflow-y-auto border-t border-line text-sm">
         {count === 0 && <li className="py-2 text-fg-muted">Nothing recorded.</li>}
         {children}
       </ul>

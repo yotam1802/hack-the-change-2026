@@ -45,21 +45,21 @@ export function Enroll() {
   }
 
   return (
-    <div className="mx-auto max-w-md p-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Enroll at triage</h1>
-      <p className="mt-1 text-sm text-fg-muted">Only patients who need watching get a wearable: chest pain, abnormal labs, shortness of breath, or another reason you record.</p>
-      <form onSubmit={submit} className="card mt-5 space-y-4 p-5">
-        {error && <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">{error}</p>}
+    <div className="mx-auto max-w-md px-6 py-8">
+      <h1 className="text-xl font-semibold">Enroll a patient</h1>
+      <p className="mt-1 text-sm text-fg-muted">For patients who need watching while they wait: chest pain, abnormal labs, shortness of breath, or another reason you record.</p>
+      <form onSubmit={submit} className="mt-6 space-y-4">
+        {error && <p className="text-sm text-red-300">{error}</p>}
         <label className="field">Name
           <input required autoFocus className="input" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
         </label>
         <div className="grid grid-cols-2 gap-3">
           <label className="field">CTAS
             <select className="input mt-1" value={ctas} onChange={(e) => setCtas(e.target.value)}>
-              {[1, 2, 3, 4, 5].map((level) => <option key={level} value={level}>CTAS {level}</option>)}
+              {[1, 2, 3, 4, 5].map((level) => <option key={level} value={level}>{level}</option>)}
             </select>
           </label>
-          <label className="field">Official temperature °C
+          <label className="field">Temperature °C
             <input className="input" inputMode="decimal" value={tempC} onChange={(e) => setTempC(e.target.value)} />
           </label>
         </div>
@@ -73,10 +73,10 @@ export function Enroll() {
         </label>
         <label className="field">Wearable
           <select className="input mt-1" value={deviceId} onChange={(e) => setDeviceId(e.target.value)}>
-            {devices.map((device) => <option key={device.id} value={device.id} disabled={device.paired}>{device.id}{device.paired ? " · in use" : ""}</option>)}
+            {devices.map((device) => <option key={device.id} value={device.id} disabled={device.paired}>{device.id}{device.paired ? " (in use)" : ""}</option>)}
           </select>
         </label>
-        <button className="btn btn-primary w-full">Pair device</button>
+        <button className="btn btn-primary mt-2">Start monitoring</button>
       </form>
     </div>
   );
