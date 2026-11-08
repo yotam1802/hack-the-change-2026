@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Server } from "node:http";
+import WebSocket from "ws";
 
 let server: Server;
 let base: string;
@@ -106,6 +107,48 @@ describe("enrollment and monitoring", () => {
     expect(action.status).toBe(200);
     const gone = await (await fetch(`${base}/api/board`)).json();
     expect(gone.patients.some((item: { id: string }) => item.id === id)).toBe(false);
+
+    const socket = new WebSocket(base.replace("http", "ws") + "/ws");
+    const live: Array<{ type: string; latest?: { bpm: number | null } }> = [];
+    await new Promise<void>((resolve, reject) => {
+      socket.on("open", () => resolve());
+      socket.on("error", reject);
+    });
+    socket.on("message", (raw) => {
+      live.push(JSON.parse(String(raw)));
+    });
+    socket.send(JSON.stringify({ type: "subscribe", unitId: "ed-waiting" }));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    const watched = await fetch(`${base}/api/enrollments`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        displayName: "Sam Okonkwo",
+        ctas: 4,
+        enrollmentReason: "other",
+        deviceId: "device-02",
+        nurseId: "n-1",
+      }),
+    });
+    expect(watched.status).toBe(201);
+    const watchBody = await watched.json();
+    const watchToken = watchBody.deviceToken as string;
+    async function postBpm(seq: number, bpm: number, ts: number) {
+      const res = await fetch(`${base}/api/readings`, {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${watchToken}` },
+        body: JSON.stringify({ deviceId: "device-02", seq, readings: [reading(ts, bpm)] }),
+      });
+      expect(res.status).toBe(202);
+    }
+    await postBpm(1, 72, start + 200_000);
+    await postBpm(2, 72, start + 201_000);
+    await postBpm(3, 88, start + 202_000);
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    socket.close();
+    const bpms = live.filter((event) => event.type === "heart_rate").map((event) => event.latest?.bpm);
+    expect(bpms).toEqual([72, 88]);
 
     const report = await fetch(`${base}/api/public/patients/${patientId}`);
     expect(report.status).toBe(200);

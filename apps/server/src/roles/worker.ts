@@ -1,12 +1,21 @@
 import type { IngestEnvelope } from "@waitwatch/shared";
 import type { Db } from "../db/db.js";
 import { getPatient, parseRuntime, persistMonitoring } from "../db/repo.js";
-import { applyBatch, initialState, type RuntimeState } from "../rules/engine.js";
+import { applyBatch, hrView, initialState, type RuntimeState } from "../rules/engine.js";
 import type { MemoryBus } from "../bus/memory.js";
 import type { Metrics } from "../metrics.js";
 import type { Realtime } from "../realtime/hub.js";
 import type { StateStore } from "../state/store.js";
 import { log } from "../log.js";
+
+/** Last bpm persisted for each patient, so a repeat of the same value is not pushed. */
+const knownBpm = new Map<string, number | null>();
+
+function bpmOf(value: unknown): number | null {
+  if (value == null) return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
 
 export async function handleEnvelope(
   deps: { db: Db; state: StateStore; rt: Realtime; metrics: Metrics; bus: { publishJob: (job: { id: string; type: "explain_prompt"; patientId?: string; promptId?: string }) => void } },
@@ -41,6 +50,27 @@ export async function handleEnvelope(
         patientId: patient.id,
         promptId: prompt.id,
       });
+    }
+    if (latest) {
+      const previousBpm = knownBpm.has(patient.id) ? knownBpm.get(patient.id)! : bpmOf(patient.last_bpm);
+      const nextBpm = latest.bpm;
+      knownBpm.set(patient.id, nextBpm);
+      if (previousBpm !== nextBpm) {
+        await deps.rt.push(patient.unit_id, {
+          type: "heart_rate",
+          patientId: patient.id,
+          latest: {
+            ts: latest.ts,
+            bpm: latest.bpm,
+            activity: latest.activity,
+            skinTempC: latest.skinTempC,
+            spo2: latest.spo2,
+            signalQuality: latest.signalQuality,
+            fallDetected: latest.fallDetected,
+          },
+          hrBaseline: hrView(applied.state.hr),
+        });
+      }
     }
     return { state: applied.state, result: saved };
   });

@@ -4,6 +4,37 @@ import { CTAS_LABEL, REASON_LABEL, type PatientView, type PromptView } from "@wa
 import { api, nurseId, type BoardResponse } from "../api";
 import { CTAS_COLOR, CtasLabel } from "../ui";
 
+type LiveMessage = {
+  type: string;
+  patients?: PatientView[];
+  prompt?: PromptView;
+  patientId?: string;
+  latest?: PatientView["latest"];
+  hrBaseline?: PatientView["hrBaseline"];
+};
+
+function applySnapshot(current: PatientView[], incoming: PatientView[]) {
+  const previous = new Map(current.map((patient) => [patient.id, patient]));
+  return incoming.map((patient) => {
+    const prior = previous.get(patient.id);
+    if (!prior?.latest) return patient;
+    if (!patient.latest || patient.latest.ts < prior.latest.ts) {
+      return { ...patient, latest: prior.latest, hrBaseline: prior.hrBaseline };
+    }
+    return patient;
+  });
+}
+
+function applyHeartRate(current: PatientView[], message: LiveMessage) {
+  if (!message.patientId || !message.latest) return current;
+  const latest = message.latest;
+  return current.map((patient) => {
+    if (patient.id !== message.patientId) return patient;
+    if (patient.latest && latest.ts < patient.latest.ts) return patient;
+    return { ...patient, latest, hrBaseline: message.hrBaseline ?? patient.hrBaseline };
+  });
+}
+
 export function Ward() {
   const [patients, setPatients] = useState<PatientView[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -11,7 +42,7 @@ export function Ward() {
 
   async function load() {
     const board = await api<BoardResponse>("/api/board");
-    setPatients(board.patients);
+    setPatients((current) => applySnapshot(current, board.patients));
   }
 
   useEffect(() => {
@@ -20,8 +51,12 @@ export function Ward() {
     const socket = new WebSocket(`${proto}://${location.host}/ws`);
     socket.onopen = () => socket.send(JSON.stringify({ type: "subscribe", unitId: "ed-waiting" }));
     socket.onmessage = (event) => {
-      const body = JSON.parse(event.data) as { type: string; patients?: PatientView[]; prompt?: PromptView };
-      if (body.type === "snapshot" && body.patients) setPatients(body.patients);
+      const body = JSON.parse(event.data) as LiveMessage;
+      if (body.type === "snapshot" && body.patients) {
+        const incoming = body.patients;
+        setPatients((current) => applySnapshot(current, incoming));
+      }
+      if (body.type === "heart_rate") setPatients((current) => applyHeartRate(current, body));
       if (body.type === "prompt") load().catch(() => undefined);
     };
     return () => socket.close();
