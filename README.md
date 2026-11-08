@@ -1,4 +1,4 @@
-# WaitWatch — waiting-room monitoring prototype!
+# WaitWatch — waiting-room monitoring prototype
 
 WaitWatch is a hackathon demonstration of a waiting-room dashboard using a React/Vite UI, an Express/TypeScript API, an embedded PGlite database (or PostgreSQL), a six-patient scripted simulator, and an experimental Arduino HW-827 pulse bridge.
 
@@ -16,9 +16,13 @@ npm run typecheck
 npm run dev
 ```
 
-Open <http://localhost:5173>. `npm run dev` starts the API on port 8787, the six scripted patients, and the dashboard. The React dashboard and backend communicate through Vite's proxy. The simulator uses separate devices from Arduino `device-08`.
+Open <http://localhost:5173> for the new public landing page. The nurse dashboard is at `/dashboard` and requires Auth0 login by an account assigned the `nurse` role (unless deliberately running in local demo mode). **Complete [Auth0 setup](docs/AUTH0_SETUP.md) before testing login.** `npm run dev` starts the API on port 8787, the six scripted patients, and the dashboard. The React dashboard and backend communicate through Vite's proxy. The simulator uses separate devices from Arduino `device-08`.
 
-The root `.env` is loaded regardless of the workspace working directory; shell environment variables override it. Each setting should be on a **separate line**. The default local database is stored under `apps/server/data/pglite`; `PGLITE_PATH=memory` gives a temporary disposable database. Empty `GEMINI_API_KEY` disables AI analysis. The other Auth0 variables in the example are placeholders and do not enable authentication by themselves.
+The root `.env` is loaded regardless of the workspace working directory; shell environment variables override it. Each setting should be on a **separate line**. The default local database is stored under `apps/server/data/pglite`; `PGLITE_PATH=memory` gives a temporary disposable database. Empty `GEMINI_API_KEY` disables AI analysis. The public Auth0 domain, client ID and audience are in `.env.example`, but you must also configure Auth0 callback URLs, a nurse role and the Post-Login Action described in `docs/AUTH0_SETUP.md`. The six simulated patients use an explicit loopback-only development bootstrap (`ENABLE_LOCAL_SIMULATOR=1`).
+
+## Homepage and nurse authentication
+
+The responsive homepage lives in `apps/dashboard/src/pages/Home.tsx`, with styling in `home.css` and a generated illustration at `apps/dashboard/public/waitwatch-hero.webp`. The `/login` page initiates Auth0 Authorization Code + PKCE; `/dashboard`, `/enroll`, and patient staff views require a token with the custom nurse role claim. The backend verifies signed Auth0 access tokens and WebSocket subscriptions before providing patient data. No OAuth client secret is needed in a browser SPA. The login tenant must be configured separately; see **[Auth0 setup and security limitations](docs/AUTH0_SETUP.md)**. The `AUTH_DEMO_MODE=1` fallback is strictly for local, non-sensitive demonstrations and disables authentication.
 
 ## Arduino pulse bridge
 
