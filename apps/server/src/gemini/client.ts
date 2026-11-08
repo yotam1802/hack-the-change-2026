@@ -28,7 +28,7 @@ export async function analyzeVitals(summary: unknown): Promise<SafetyAssessment 
     const { GoogleGenAI } = await import("@google/genai");
     const ai = new GoogleGenAI({ apiKey: key });
     const response = await ai.models.generateContent({
-      model: process.env.GEMINI_MODEL ?? "gemini-2.5-flash",
+      model: process.env.GEMINI_MODEL ?? "gemini-3.8-flash",
       contents: `You are a clinical safety screening assistant, not a physician. Do not diagnose or change triage.
 Review only the de-identified wearable data below. The recentBpmStats.readings array contains the past 30 seconds of BPM samples. Analyze that window for sporadic heart rate and use ALERT when its standard deviation is over 30. These are screening thresholds, not a diagnosis. Treat poor signal, activity, and missing values as uncertainty.
 Return JSON only with exactly {"status":"SAFE"|"ALERT","reason":string}. Do not return any other status or fields. Keep reason under 500 characters. If status is ALERT, include "AI screening only; verify the patient" in the reason.
@@ -52,7 +52,7 @@ export async function draftText(task: string, summary: unknown): Promise<{ text:
     const { GoogleGenAI } = await import("@google/genai");
     const ai = new GoogleGenAI({ apiKey: key });
     const response = await ai.models.generateContent({
-      model: process.env.GEMINI_MODEL ?? "gemini-2.5-flash",
+      model: process.env.GEMINI_MODEL ?? "gemini-3.8-flash",
       contents: `${SYSTEM}\n\nTask: ${task}\nJSON:\n${JSON.stringify(summary)}`,
     });
     const text = response.text?.trim();

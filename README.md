@@ -75,7 +75,7 @@ docker compose -f infra/docker-compose.yml up -d
 DATABASE_URL=postgres://waitwatch:waitwatch@localhost:5432/waitwatch npm run dev -w @waitwatch/server
 ```
 
-The six simulated patients run with `npm run dev` at the root. For load testing against a running server:
+The six simulated patients run with `npm run dev` at the root. Their scripted BPM values now fluctuate modestly and each demo device sends **one batch per real second** (still including all accelerated scenario samples). The Arduino `device-08` is not affected. Simulated BPM and vital signs are fictional demonstration data. For load testing against a running server:
 
 ```bash
 npm run load -- --patients=2000 --seconds=12

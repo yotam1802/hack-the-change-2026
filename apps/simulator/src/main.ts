@@ -55,6 +55,7 @@ function initialDemoSequence(): number {
 }
 
 function runPatient(demo: (typeof DEMOS)[number], token: string) {
+  let activeToken = token;
   let second = 0;
   let seq = initialDemoSequence();
   let sending = false;
@@ -69,22 +70,29 @@ function runPatient(demo: (typeof DEMOS)[number], token: string) {
     const readings = Array.from({ length: demo.speed }, () => sample(demo.scenario, second++, started));
     const current = seq++;
     sending = true;
-    void fetch(`${baseUrl}/api/readings`, {
-      method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
-      body: JSON.stringify({ deviceId: demo.deviceId, seq: current, readings }),
-    })
-      .then((response) => {
-        if (!response.ok) {
+    void (async () => {
+      try {
+        const response = await fetch(`${baseUrl}/api/readings`, {
+          method: "POST",
+          headers: { "content-type": "application/json", authorization: `Bearer ${activeToken}` },
+          body: JSON.stringify({ deviceId: demo.deviceId, seq: current, readings }),
+        });
+        if (response.status === 401 || response.status === 409) {
+          // A restarted local server can replace the in-memory device registry.
+          // Re-enroll/refresh this simulator's own device before the next tick.
+          console.warn(`Demo device ${demo.deviceId}: HTTP ${response.status}; refreshing enrollment`);
+          const refreshed = await enroll(demo);
+          if (!refreshed) throw new Error(`No token for demo device ${demo.deviceId}`);
+          activeToken = refreshed;
+        } else if (!response.ok) {
           console.warn(`Demo ingest failed for ${demo.deviceId}: HTTP ${response.status}`);
         }
-      })
-      .catch((error: unknown) => {
+      } catch (error) {
         console.warn(`Demo ingest failed for ${demo.deviceId}:`, error);
-      })
-      .finally(() => {
+      } finally {
         sending = false;
-      });
+      }
+    })();
   }, 1000);
   return timer;
 }

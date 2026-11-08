@@ -64,7 +64,10 @@ export async function runJob(db: Db, rt: Realtime, job: GeminiJob) {
       text = drafted.text;
     } else if (job.type === "analyze_vitals" && job.patientId) {
       const summary = await summaryFor(db, job.patientId);
-      if (!summary) throw new Error("patient missing");
+      if (!summary) {
+        await finishJob(db, job.id, "Patient unavailable; job skipped.", "error");
+        return;
+      }
       const assessment = await analyzeVitals(deidentify(summary));
       if (assessment?.status === "ALERT") {
         const patient = await getPatient(db, job.patientId);
@@ -80,7 +83,10 @@ export async function runJob(db: Db, rt: Realtime, job: GeminiJob) {
       text = assessment?.status ?? "SAFE";
     } else if (job.patientId) {
       const summary = await summaryFor(db, job.patientId);
-      if (!summary) throw new Error("patient missing");
+      if (!summary) {
+        await finishJob(db, job.id, "Patient unavailable; job skipped.", "error");
+        return;
+      }
       const flag = job.promptId ? summary.flags.find((item) => item.id === job.promptId) : summary.flags[0];
       const { deidentify } = await import("../gemini/summary.js");
       const drafted = await draftText(job.type, deidentify(summary, flag));
