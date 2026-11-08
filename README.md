@@ -35,7 +35,7 @@ That enrolls 2,000 patients, streams about one reading per patient per second, t
 
 ## AWS
 
-`infra/` is an AWS CDK app: ECS Fargate (ingest, API, workers, Gemini), an ALB, Kinesis, DynamoDB, SQS, API Gateway WebSockets, Aurora PostgreSQL Serverless v2, Cognito, and CloudFront. There is no Redis.
+`infra/` is an AWS CDK app: ECS Fargate (ingest, API, workers, Gemini), an ALB, Kinesis, DynamoDB, SQS, API Gateway WebSockets, Aurora PostgreSQL Serverless v2, Cognito, and CloudFront.
 
 ```bash
 npm run synth -w @waitwatch/infra
