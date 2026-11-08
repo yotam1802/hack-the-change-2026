@@ -1,4 +1,4 @@
-# WaitWatch
+# WaitWatch!
 
 Waiting-room monitor modeled on the Dartmouth General wearables pilot. Nurses keep CTAS priority. The wearable records heart rate, motion, and approximate skin temperature, and prompts a reassessment when a patient drifts from their own resting baseline.
 
