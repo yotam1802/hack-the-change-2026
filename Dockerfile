@@ -9,4 +9,4 @@ ENV ROLE=all
 ENV PORT=8787
 
 EXPOSE 8787
-CMD ["npx", "tsx", "apps/server/src/index.ts"] 
+CMD ["npx", "tsx", "apps/server/src/index.ts"]
