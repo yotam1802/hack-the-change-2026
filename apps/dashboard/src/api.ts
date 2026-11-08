@@ -2,21 +2,16 @@ import type { PatientView, PromptView } from "@waitwatch/shared";
 
 export type BoardResponse = { patients: PatientView[]; serverTime: number };
 
-const NURSE_KEY = "waitwatch-nurse";
-
-export const NURSES = [
-  { id: "n-1", name: "A. Singh" },
-  { id: "n-2", name: "M. Chen" },
-  { id: "n-3", name: "J. Patel" },
-];
-
-export function nurseId() {
-  return localStorage.getItem(NURSE_KEY) ?? "n-1";
+// Auth0 provides the nurse identity. This value is never trusted by the backend;
+// the backend derives the author from the verified JWT subject.
+let accessToken: string | null = null;
+let activeNurseId = "";
+export function setSessionCredentials(token: string | null, subject: string) {
+  accessToken = token;
+  activeNurseId = subject;
 }
-
-export function setNurseId(id: string) {
-  localStorage.setItem(NURSE_KEY, id);
-}
+export function getSessionToken() { return accessToken; }
+export function nurseId() { return activeNurseId || "local-demo-nurse"; }
 
 const FIELD_LABELS: Record<string, string> = {
   displayName: "Name",
@@ -35,6 +30,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   if (init.body && !headers.has("content-type")) headers.set("content-type", "application/json");
   headers.set("x-nurse-id", nurseId());
+  if (accessToken) headers.set("authorization", `Bearer ${accessToken}`);
   const res = await fetch(path, { ...init, headers });
   if (!res.ok) throw new Error(formatApiError(await res.text()));
   return res.json() as Promise<T>;

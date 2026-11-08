@@ -51,3 +51,11 @@ body {
 .btn-quiet {
   @apply text-fg-muted hover:text-fg;
 }
+
+/* Click and keyboard affordances shared by the nurse dashboard and homepage. */
+a[href], button:not(:disabled), select:not(:disabled), summary, [role="button"] { cursor: pointer; }
+button:disabled, select:disabled { cursor: not-allowed; }
+html { scroll-behavior: smooth; }
+.btn { transition: background-color .18s, border-color .18s, box-shadow .18s, transform .18s; }
+.btn:not(:disabled):hover { box-shadow: 0 0 15px rgba(101,147,255,.18); }
+.btn:focus-visible, .input:focus-visible { outline: 2px solid #7ccfff; outline-offset: 2px; }
