@@ -3,7 +3,7 @@ const int sensorPin = A0;
 float baseline = 0;
 float smoothValue = 0;
 
-float threshold = 2;
+float threshold = 0.9;
 
 bool pulseDetected = false;
 

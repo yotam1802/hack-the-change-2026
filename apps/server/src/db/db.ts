@@ -34,14 +34,21 @@ export async function openDb(): Promise<Db> {
   if (path !== "memory") mkdirSync(path, { recursive: true });
   const db = path === "memory" ? new PGlite() : new PGlite(path);
   await db.waitReady;
+  // The local embedded DB is shared by HTTP requests, worker callbacks and
+  // snapshot timers. Serialize its operations to avoid overlapping protocol
+  // use. PostgreSQL Pool above remains concurrent for load and deployment.
+  let tail: Promise<void> = Promise.resolve();
+  function enqueue<T>(operation: () => Promise<T>): Promise<T> {
+    const result = tail.then(operation);
+    tail = result.then(() => undefined, () => undefined);
+    return result;
+  }
   return {
-    query: async (sql, params) => {
+    query: (sql, params) => enqueue(async () => {
       const result = await db.query(sql, params as never[]);
       return { rows: result.rows as never[] };
-    },
-    exec: async (sql) => {
-      await db.exec(sql);
-    },
+    }),
+    exec: (sql) => enqueue(async () => { await db.exec(sql); }),
   };
 }
 

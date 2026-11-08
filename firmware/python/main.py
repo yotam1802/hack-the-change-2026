@@ -1,23 +1,25 @@
-"""Arduino HW-827 -> WaitWatch Express demo bridge.
+"""HW-827 -> WaitWatch filtered pulse bridge (device-08).
 
-First 7 individual BPM readings initialize the reference range: remove the
-reading furthest from the median; calculate mean and sample standard deviation
-of the 6 remaining readings; bounds = floor(mean - std), ceil(mean + std).
+Sensor BPM samples determine a filtered BPM and range:
+  - First 7 valid BPM readings: drop one largest deviation from the median;
+    mean +/- sample standard deviation of the remaining 6.
+  - Each subsequent BPM sample: examine the most recent 5 raw samples,
+    discard one outlier and calculate mean +/- sample std of the remaining 4.
+  - ALWAYS recalculate integer bounds from the latest rolling mean +/- std,
+    even when the new mean remains inside the previous range.
 
-Beginning with the 8th reading, use the latest 5 individual BPM readings
-(sliding by 1 reading). Remove one outlier (furthest from median), and calculate
-mean and sample std of the remaining 4. Update the stored range ONLY when that
-new mean is below (current bpmMin - stored std) or above
-(current bpmMax + stored std). On an update the new bounds are
-floor(new mean - new std), ceil(new mean + new std).
-
-Each valid BPM reading is forwarded, with bpmMin/bpmMax null until sample 7.
-The range is a heuristic visualization, NOT a clinically validated heart rate
-confidence interval. HW-827 does not measure SpO2, temperature or motion.
+Transmit once for each valid BPM calculated and printed by the Arduino.
+After calibration the BPM is the latest filtered mean of the retained sensor
+readings, and the accompanying range is rebuilt from that same mean +/- std.
+There is no timer and no invented BPM.
+When the Arduino stops reporting, the bridge stops sending new readings.
+The statistical range is heuristic, not a validated confidence interval.
+HW-827 cannot measure SpO2, temperature or motion. Do not use this bridge
+for clinical monitoring, diagnosis, alerts or triage.
 
 Install: python3 -m pip install pyserial
 Run: SERIAL=/dev/cu.usbmodemXXXX python3 main.py
-Optional: DEMO_STUB_VITALS=1 (simulated SpO2/temp for demos only)
+Optional: DEMO_STUB_VITALS=0 to send null temperature/SpO2
 """
 
 import json
@@ -38,7 +40,10 @@ DEVICE_TOKEN = os.getenv("DEVICE_TOKEN", f"dev-{DEVICE_ID}")
 SERIAL_BAUD = int(os.getenv("SERIAL_BAUD", "9600"))
 INITIAL_COUNT = 7
 ROLLING_COUNT = 5
-DEMO_STUB_VITALS = os.getenv("DEMO_STUB_VITALS", "0") == "1"
+# These are DEMO defaults, not measured values.
+DEMO_STUB_VITALS = os.getenv("DEMO_STUB_VITALS", "1") == "1"
+DEMO_SKIN_TEMP_C = 33.4
+DEMO_SPO2 = 98.0
 BPM_RE = re.compile(r"\b(?:heart\s*rate|bpm)\s*:\s*(\d+(?:\.\d+)?)\b", re.I)
 
 
@@ -60,31 +65,76 @@ def parse_bpm(raw: str) -> float | None:
 
 
 def calculate_range(values: list[float]) -> tuple[float, float, int, int, float]:
-    """Drop exactly one largest median deviation, then mean ± sample std."""
+    """Remove one extreme point; calculate mean, sample std and rounded bounds."""
     if len(values) not in (INITIAL_COUNT, ROLLING_COUNT):
-        raise ValueError("Expected 7 initial readings or 5 sliding readings")
-    midpoint = statistics.median(values)
-    outlier_index = max(range(len(values)), key=lambda i: abs(values[i] - midpoint))
+        raise ValueError("Expected 7 initial readings or 5 rolling readings")
+    median = statistics.median(values)
+    outlier_index = max(range(len(values)), key=lambda i: abs(values[i] - median))
     kept = [v for i, v in enumerate(values) if i != outlier_index]
     mean = statistics.mean(kept)
     std = statistics.stdev(kept)
     return mean, std, math.floor(mean - std), math.ceil(mean + std), values[outlier_index]
 
 
-def make_reading(bpm: float, bpm_min: int | None, bpm_max: int | None) -> dict[str, Any]:
-    # Schema-required placeholder fields below are not sensor measurements.
+class BpmRange:
+    """Maintain the last computed range as new sensor BPM samples arrive."""
+
+    def __init__(self) -> None:
+        self.initial: list[float] = []
+        self.recent: deque[float] = deque(maxlen=ROLLING_COUNT)
+        self.bpm_min: int | None = None
+        self.bpm_max: int | None = None
+        self.last_measured_bpm: float | None = None
+        self.filtered_bpm: float | None = None
+
+    def add_sample(self, bpm: float) -> None:
+        self.last_measured_bpm = bpm
+        self.recent.append(bpm)
+        if len(self.initial) < INITIAL_COUNT:
+            self.initial.append(bpm)
+            print(f"Calibration {len(self.initial)}/{INITIAL_COUNT}: {bpm:.1f} BPM", file=sys.stderr)
+            if len(self.initial) == INITIAL_COUNT:
+                mean, std, self.bpm_min, self.bpm_max, removed = calculate_range(self.initial)
+                self.filtered_bpm = mean
+                print(
+                    f"INITIAL RANGE: removed={removed:.1f}, mean={mean:.2f}, "
+                    f"std={std:.2f} -> [{self.bpm_min}, {self.bpm_max}]",
+                    file=sys.stderr,
+                )
+            return
+
+        mean, std, self.bpm_min, self.bpm_max, removed = calculate_range(list(self.recent))
+        self.filtered_bpm = mean
+        print(
+            f"RANGE RECALCULATED: window={list(self.recent)}, removed={removed:.1f}, "
+            f"mean={mean:.2f}, std={std:.2f} -> [{self.bpm_min}, {self.bpm_max}]",
+            file=sys.stderr,
+        )
+
+    def current_bpm(self) -> float | None:
+        """Current sensor-derived estimate (called for each new Arduino BPM)."""
+        if self.bpm_min is None or self.bpm_max is None:
+            # During calibration there is not yet a filtered baseline.
+            return self.last_measured_bpm
+        if self.filtered_bpm is None:
+            return None
+        return round(self.filtered_bpm, 1)
+
+
+def make_reading(bpm: float | None, bpm_min: int | None, bpm_max: int | None) -> dict[str, Any]:
+    # All non-BPM fields below are schema-required placeholders or demo stubs.
     return {
         "ts": int(time.time() * 1000),
-        "bpm": round(bpm, 1),
+        "bpm": bpm,
         "bpmMin": bpm_min,
         "bpmMax": bpm_max,
         "ibiMs": [],
         "signalQuality": 0.0,
-        "activity": "rest",  # assumption; not measured
-        "motionMag": 0.0,  # unmeasured
-        "fallDetected": False,  # unmeasured
-        "skinTempC": 33.0 if DEMO_STUB_VITALS else None,
-        "spo2": 98.0 if DEMO_STUB_VITALS else None,
+        "activity": "rest",  # not measured
+        "motionMag": 0.0,  # not measured
+        "fallDetected": False,  # not measured
+        "skinTempC": DEMO_SKIN_TEMP_C if DEMO_STUB_VITALS else None,
+        "spo2": DEMO_SPO2 if DEMO_STUB_VITALS else None,
         "spo2Simulated": True,
     }
 
@@ -105,12 +155,12 @@ def lines() -> Iterator[str]:
 
     while True:
         try:
-            existing = {port.device for port in list_ports.comports()}
+            available = {p.device for p in list_ports.comports()}
             selected = serial_path
-            if selected not in existing:
-                candidates = sorted(p for p in existing if "usbmodem" in p or "usbserial" in p)
+            if selected not in available:
+                candidates = sorted(p for p in available if "usbmodem" in p or "usbserial" in p)
                 if len(candidates) != 1:
-                    print(f"Serial device missing: {serial_path}; retrying...", file=sys.stderr)
+                    print(f"Serial port missing: {serial_path}; retrying...", file=sys.stderr)
                     time.sleep(2)
                     continue
                 selected = candidates[0]
@@ -118,30 +168,27 @@ def lines() -> Iterator[str]:
                 print(f"Arduino port changed to {selected}", file=sys.stderr)
             with serial.Serial(selected, SERIAL_BAUD, timeout=1) as port:
                 print(f"Connected to {selected} at {SERIAL_BAUD} baud", file=sys.stderr)
-                time.sleep(2)  # Arduino often resets when serial opens.
+                time.sleep(2)  # Arduino may reset when serial opens.
                 while True:
-                    value = port.readline().decode("utf-8", errors="replace").strip()
-                    if value:
-                        yield value
+                    raw = port.readline().decode("utf-8", errors="replace").strip()
+                    if raw:
+                        yield raw
         except (serial.SerialException, OSError) as exc:
-            print(f"Serial connection lost: {exc}; reconnecting...", file=sys.stderr)
+            print(f"Serial disconnected: {exc}; reconnecting...", file=sys.stderr)
             time.sleep(2)
 
 
 def post(seq: int, reading: dict[str, Any]) -> None:
     payload = {"deviceId": DEVICE_ID, "seq": seq, "readings": [reading]}
-    request = urllib.request.Request(
+    req = urllib.request.Request(
         INGEST_URL,
         data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {DEVICE_TOKEN}",
-        },
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {DEVICE_TOKEN}"},
         method="POST",
     )
-    with urllib.request.urlopen(request, timeout=5) as response:
+    with urllib.request.urlopen(req, timeout=5) as response:
         if response.status != 202:
-            raise RuntimeError(f"Unexpected response: HTTP {response.status}")
+            raise RuntimeError(f"Unexpected HTTP {response.status}")
         response.read()
 
 
@@ -153,81 +200,62 @@ def report_error(exc: Exception) -> None:
 
 
 def main() -> None:
-    print(f"Forwarding to {INGEST_URL} as {DEVICE_ID}", file=sys.stderr)
-    print("Initialize on 7 individual readings; then slide 5 raw BPM readings by 1", file=sys.stderr)
+    print(f"Forwarding {DEVICE_ID} to {INGEST_URL} once per Arduino BPM reading", file=sys.stderr)
+    print("After calibration: range recalculated from each rolling mean +/- std", file=sys.stderr)
     if DEMO_STUB_VITALS:
-        print("DEMO MODE: simulated SpO2 and skin temperature; NOT measured", file=sys.stderr)
+        print("DEMO: skinTempC=33.4 and SpO2=98 are NOT measured", file=sys.stderr)
 
-    initial: list[float] = []
-    recent: deque[float] = deque(maxlen=ROLLING_COUNT)
-    bpm_min: int | None = None
-    bpm_max: int | None = None
-    reference_std: float | None = None
+    state = BpmRange()
     seq = 0
     pending: tuple[int, dict[str, Any]] | None = None
 
     try:
         for raw in lines():
-            bpm = parse_bpm(raw)
-            if bpm is None:
+            sample = parse_bpm(raw)
+            if sample is None:
                 continue
 
-            recent.append(bpm)
-            if len(initial) < INITIAL_COUNT:
-                initial.append(bpm)
-                print(f"Initial reading {len(initial)}/{INITIAL_COUNT}: {bpm:.1f}", file=sys.stderr)
-                if len(initial) == INITIAL_COUNT:
-                    mean, reference_std, bpm_min, bpm_max, excluded = calculate_range(initial)
-                    print(
-                        f"INITIAL RANGE: removed={excluded:.1f}; mean={mean:.2f}; "
-                        f"std={reference_std:.2f}; [{bpm_min}, {bpm_max}]",
-                        file=sys.stderr,
-                    )
-            else:
-                mean, new_std, new_min, new_max, excluded = calculate_range(list(recent))
-                # Compare against previous displayed integer bounds plus/minus
-                # ONE stored standard deviation, as requested.
-                assert bpm_min is not None and bpm_max is not None and reference_std is not None
-                lower_trigger = bpm_min - reference_std
-                upper_trigger = bpm_max + reference_std
-                if mean < lower_trigger or mean > upper_trigger:
-                    bpm_min, bpm_max = new_min, new_max
-                    reference_std = new_std
-                    print(
-                        f"RANGE UPDATED: window={list(recent)} removed={excluded:.1f} "
-                        f"mean={mean:.2f}, std={new_std:.2f} -> [{bpm_min}, {bpm_max}]",
-                        file=sys.stderr,
-                    )
-                else:
-                    print(
-                        f"Range held [{bpm_min}, {bpm_max}]: window mean={mean:.2f}, "
-                        f"std={new_std:.2f}; update outside ({lower_trigger:.2f}, {upper_trigger:.2f})",
-                        file=sys.stderr,
-                    )
+            # Exactly one computation and one new POST per Arduino BPM output.
+            # The first 7 samples establish the range; every subsequent sample
+            # moves the 5-reading sliding window and recalculates mean +/- std.
+            state.add_sample(sample)
+            bpm = state.current_bpm()
+            reading = make_reading(bpm, state.bpm_min, state.bpm_max)
 
-            reading = make_reading(bpm, bpm_min, bpm_max)
-            # Never change the sequence number of a failed POST. Retry that
-            # same payload before the latest one; bound memory to one pending.
+            # Retry one failed send before sending the current value. This
+            # preserves sequence numbering and avoids an unlimited backlog.
             if pending is not None:
                 try:
                     post(*pending)
                 except (urllib.error.URLError, TimeoutError, RuntimeError) as exc:
+                    if isinstance(exc, urllib.error.HTTPError) and exc.code in (401, 403):
+                        pending = None
+                        raise SystemExit(f"Device authentication failed (HTTP {exc.code}). Check DEVICE_TOKEN.") from exc
                     report_error(exc)
-                    print("Skipping current POST while earlier one is pending", file=sys.stderr)
+                    print("Skipped this Arduino reading while a POST is pending", file=sys.stderr)
                     continue
-                print(f"Sent pending batch {pending[0]}", file=sys.stderr)
+                print(f"Retried pending batch {pending[0]}", file=sys.stderr)
                 seq += 1
                 pending = None
+
             try:
                 post(seq, reading)
             except (urllib.error.URLError, TimeoutError, RuntimeError) as exc:
+                if isinstance(exc, urllib.error.HTTPError) and exc.code in (401, 403):
+                    raise SystemExit(f"Device authentication failed (HTTP {exc.code}). Check DEVICE_TOKEN.") from exc
                 report_error(exc)
                 pending = (seq, reading)
             else:
-                print(f"Sent {seq}: bpm={bpm:.1f}, range=[{bpm_min}, {bpm_max}]", file=sys.stderr)
+                mode = "filtered" if state.bpm_min is not None else "calibrating"
+                bpm_text = f"{bpm:.1f}" if bpm is not None else "null"
+                print(
+                    f"Sent {seq} ({mode}): bpm={bpm_text}, "
+                    f"range=[{state.bpm_min}, {state.bpm_max}]",
+                    file=sys.stderr,
+                )
                 seq += 1
     except KeyboardInterrupt:
-        print("Stopped by user", file=sys.stderr)
+        print("Stopped", file=sys.stderr)
     finally:
         if pending is not None:
             try:
@@ -235,7 +263,6 @@ def main() -> None:
                 print(f"Sent pending batch {pending[0]}", file=sys.stderr)
             except (urllib.error.URLError, TimeoutError, RuntimeError) as exc:
                 report_error(exc)
-                print("Pending batch was not sent", file=sys.stderr)
 
 
 if __name__ == "__main__":

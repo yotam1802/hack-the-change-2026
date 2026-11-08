@@ -109,7 +109,7 @@ describe("enrollment and monitoring", () => {
     expect(gone.patients.some((item: { id: string }) => item.id === id)).toBe(false);
 
     const socket = new WebSocket(base.replace("http", "ws") + "/ws");
-    const live: Array<{ type: string; latest?: { bpm: number | null } }> = [];
+    const live: Array<{ type: string; latest?: { bpm: number | null; bpmMin?: number | null; bpmMax?: number | null } }> = [];
     await new Promise<void>((resolve, reject) => {
       socket.on("open", () => resolve());
       socket.on("error", reject);
@@ -134,21 +134,27 @@ describe("enrollment and monitoring", () => {
     expect(watched.status).toBe(201);
     const watchBody = await watched.json();
     const watchToken = watchBody.deviceToken as string;
-    async function postBpm(seq: number, bpm: number, ts: number) {
+    async function postBpm(seq: number, bpm: number, ts: number, extra: Record<string, unknown> = {}) {
       const res = await fetch(`${base}/api/readings`, {
         method: "POST",
         headers: { "content-type": "application/json", authorization: `Bearer ${watchToken}` },
-        body: JSON.stringify({ deviceId: "device-02", seq, readings: [reading(ts, bpm)] }),
+        body: JSON.stringify({ deviceId: "device-02", seq, readings: [reading(ts, bpm, extra)] }),
       });
       expect(res.status).toBe(202);
     }
     await postBpm(1, 72, start + 200_000);
     await postBpm(2, 72, start + 201_000);
     await postBpm(3, 88, start + 202_000);
+    // Same BPM but a new range must still reach the Ward via WebSocket.
+    await postBpm(4, 88, start + 203_000, { bpmMin: 81, bpmMax: 91 });
     await new Promise((resolve) => setTimeout(resolve, 400));
+    const rangedBoard = await (await fetch(`${base}/api/board`)).json();
+    const rangedPatient = rangedBoard.patients.find((item: { id: string }) => item.id === watchBody.patient.id);
+    expect(rangedPatient.latest).toMatchObject({ bpm: 88, bpmMin: 81, bpmMax: 91 });
     socket.close();
     const bpms = live.filter((event) => event.type === "heart_rate").map((event) => event.latest?.bpm);
-    expect(bpms).toEqual([72, 88]);
+    expect(bpms).toEqual([72, 88, 88]);
+    expect(live.some((event) => event.type === "heart_rate" && event.latest?.bpmMin === 81 && event.latest?.bpmMax === 91)).toBe(true);
 
     const report = await fetch(`${base}/api/public/patients/${patientId}`);
     expect(report.status).toBe(200);

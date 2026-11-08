@@ -12,7 +12,6 @@ type LiveMessage = {
   latest?: PatientView["latest"];
   hrBaseline?: PatientView["hrBaseline"];
 };
-
 function applySnapshot(current: PatientView[], incoming: PatientView[]) {
   const previous = new Map(current.map((patient) => [patient.id, patient]));
   return incoming.map((patient) => {
@@ -24,7 +23,6 @@ function applySnapshot(current: PatientView[], incoming: PatientView[]) {
     return patient;
   });
 }
-
 function applyHeartRate(current: PatientView[], message: LiveMessage) {
   if (!message.patientId || !message.latest) return current;
   const latest = message.latest;
@@ -34,22 +32,32 @@ function applyHeartRate(current: PatientView[], message: LiveMessage) {
     return { ...patient, latest, hrBaseline: message.hrBaseline ?? patient.hrBaseline };
   });
 }
-
 export function Ward() {
   const [patients, setPatients] = useState<PatientView[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [error, setError] = useState("");
+  // Dismissing a popup does not acknowledge or clear its underlying alert.
+  const [alertDismissedUntil, setAlertDismissedUntil] = useState(0);
 
+  useEffect(() => {
+    if (!alertDismissedUntil) return;
+    const timer = window.setTimeout(
+      () => setAlertDismissedUntil(0),
+      Math.max(0, alertDismissedUntil - Date.now()),
+    );
+    return () => window.clearTimeout(timer);
+  }, [alertDismissedUntil]);
   async function load() {
     const board = await api<BoardResponse>("/api/board");
     setPatients((current) => applySnapshot(current, board.patients));
   }
-
   useEffect(() => {
     load().catch((err) => setError(String(err)));
     const proto = location.protocol === "https:" ? "wss" : "ws";
     const socket = new WebSocket(`${proto}://${location.host}/ws`);
+
     socket.onopen = () => socket.send(JSON.stringify({ type: "subscribe", unitId: "ed-waiting" }));
+
     socket.onmessage = (event) => {
       const body = JSON.parse(event.data) as LiveMessage;
       if (body.type === "snapshot" && body.patients) {
@@ -61,40 +69,58 @@ export function Ward() {
     };
     return () => socket.close();
   }, []);
-
   const current = patients.find((patient) => patient.id === selected) ?? null;
-  const alertPatients = patients.filter((patient) =>
-    (patient.latest?.bpm ?? 0) >= 120 ||
-    patient.openPrompts.some((prompt) => ["ai_serious_vital", "high_bpm_static"].includes(prompt.kind) && prompt.severity === "urgent" && !prompt.ackedAt),
+  const alertPatients = patients.filter(
+    (patient) =>
+      (patient.latest?.bpm ?? 0) >= 120 ||
+      patient.openPrompts.some(
+        (prompt) =>
+          ["ai_serious_vital", "high_bpm_static"].includes(prompt.kind) &&
+          prompt.severity === "urgent" && !prompt.ackedAt,
+      ),
   );
-
   return (
     <div className="grid w-full gap-6 px-6 py-8 lg:grid-cols-[minmax(0,1fr)_320px] lg:pl-56">
-      {alertPatients.length > 0 && (
+      {alertPatients.length > 0 && alertDismissedUntil === 0 && (
         <aside
           aria-live="assertive"
           aria-label="High heart rate alerts"
           className="fixed right-4 top-20 z-50 w-80 rounded-lg border border-red-500 bg-black p-4 text-white shadow-lg shadow-red-950/40"
         >
-          <h2 className="font-semibold text-red-400">High heart rate alert</h2>
+          <div className="flex items-start justify-between gap-3">
+            <h2 className="font-semibold text-red-400">High heart rate alert</h2>
+            <button
+              type="button"
+              aria-label="Dismiss alert popup for 15 seconds"
+              title="Dismiss for 15 seconds"
+              className="-mr-1 -mt-1 rounded p-1 text-white/70 hover:bg-red-950 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
+              onClick={() => setAlertDismissedUntil(Date.now() + 15_000)}
+            >
+              <svg aria-hidden="true" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <path d="M4 4l10 10M14 4L4 14" />
+              </svg>
+            </button>
+          </div>
           <div className="mt-2 grid gap-2">
             {alertPatients.map((patient) => {
-              const alert = patient.openPrompts.find((prompt) => ["ai_serious_vital", "high_bpm_static"].includes(prompt.kind) && prompt.severity === "urgent" && !prompt.ackedAt);
+              const alert = patient.openPrompts.find(
+                (prompt) => ["ai_serious_vital", "high_bpm_static"].includes(prompt.kind) && prompt.severity === "urgent" && !prompt.ackedAt,
+              );
               const isHighBpm = (patient.latest?.bpm ?? 0) >= 120;
               return (
-              <button
-                key={patient.id}
-                className="rounded border border-red-500/50 bg-black px-3 py-2 text-left text-sm hover:border-red-400 hover:bg-red-950/50"
-                onClick={() => setSelected(patient.id)}
-              >
-                <span className="font-medium">{patient.displayName}</span>
-                <span className="ml-2 font-semibold text-red-400">{isHighBpm ? "Static alert" : "AI alert"}</span>
-                <span className="mt-1 block text-xs text-red-200">
-                  {isHighBpm
-                    ? `Heart rate is ${patient.latest?.bpm} BPM, at or above the 120 BPM safety threshold.`
-                    : alert?.message}
-                </span>
-              </button>
+                <button
+                  key={patient.id}
+                  className="rounded border border-red-500/50 bg-black px-3 py-2 text-left text-sm hover:border-red-400 hover:bg-red-950/50"
+                  onClick={() => setSelected(patient.id)}
+                >
+                  <span className="font-medium">{patient.displayName}</span>
+                  <span className="ml-2 font-semibold text-red-400">{isHighBpm ? "Static alert" : "AI alert"}</span>
+                  <span className="mt-1 block text-xs text-red-200">
+                    {isHighBpm
+                      ? `Heart rate is ${patient.latest?.bpm} BPM, at or above the 120 BPM safety threshold.`
+                      : alert?.message}
+                  </span>
+                </button>
               );
             })}
           </div>
@@ -123,7 +149,6 @@ export function Ward() {
     </div>
   );
 }
-
 function Legend() {
   const ctas = [
     [1, "Resuscitation"],
@@ -137,7 +162,6 @@ function Legend() {
     ["#facc15", "Warning", "Needs attention"],
     ["#f87171", "Urgent", "Priority prompt"],
   ] as const;
-
   return (
     <aside aria-label="Color legend" className="card h-fit p-3 lg:fixed lg:left-4 lg:top-20 lg:z-20 lg:w-44">
       <h2 className="text-xs font-semibold uppercase tracking-wider text-fg-faint">Legend</h2>
@@ -168,13 +192,17 @@ function Legend() {
     </aside>
   );
 }
-
 function PatientCard({ patient, selected, onSelect }: { patient: PatientView; selected: boolean; onSelect: () => void }) {
-  const bpm = patient.latest?.bpm ?? null;
-  const skin = patient.latest?.skinTempC;
-  const spo2 = patient.latest?.spo2;
+  const reading = patient.latest;
+  // Python now sends a sensor-derived filtered BPM. Never randomize it here.
+  const bpm = reading?.bpm ?? null;
+  const isArduino = patient.deviceId === "device-08";
+  const min = reading?.bpmMin;
+  const max = reading?.bpmMax;
+  const hasRange = isArduino && min != null && max != null && min <= max;
+  const skin = reading?.skinTempC;
+  const spo2 = reading?.spo2;
   const baseline = patient.hrBaseline.bpm;
-
   return (
     <button
       onClick={onSelect}
@@ -185,15 +213,18 @@ function PatientCard({ patient, selected, onSelect }: { patient: PatientView; se
         <span className="truncate font-medium">{patient.displayName}</span>
         <CtasLabel level={patient.ctas} className="text-fg-muted" />
       </div>
-
       <div className="mt-3 flex items-baseline gap-2">
         <span className={`text-4xl font-semibold leading-none tabular-nums ${bpm == null ? "text-fg-faint" : ""}`}>{bpm ?? "–"}</span>
         <span className="text-sm text-fg-muted">bpm</span>
       </div>
+      {hasRange && (
+        <p className="mt-1 text-xs text-fg-muted">
+          Filtered sensor estimate · range {min}–{max} bpm
+        </p>
+      )}
       <p className="mt-1.5 text-sm">
-        <HeartRateNote bpm={bpm} baseline={patient.hrBaseline} activity={patient.latest?.activity} />
+        <HeartRateNote bpm={bpm} baseline={patient.hrBaseline} activity={reading?.activity} />
       </p>
-
       <dl className="mt-4 grid grid-cols-3 gap-2 text-sm">
         <Item label="Skin" value={skin != null ? `${skin.toFixed(1)} °C` : "–"} />
         <Item label="SpO₂" value={spo2 != null ? `${spo2}%` : "–"} />
@@ -202,7 +233,6 @@ function PatientCard({ patient, selected, onSelect }: { patient: PatientView; se
     </button>
   );
 }
-
 function Item({ label, value }: { label: string; value: string }) {
   return (
     <div>
@@ -211,7 +241,6 @@ function Item({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-
 function HeartRateNote({ bpm, baseline, activity }: { bpm: number | null; baseline: PatientView["hrBaseline"]; activity?: string }) {
   if (bpm == null) return <span className="text-fg-faint">No signal from the wearable</span>;
   const state = activity && activity !== "rest" ? `, ${activity}` : "";
@@ -225,21 +254,17 @@ function HeartRateNote({ bpm, baseline, activity }: { bpm: number | null; baseli
   const color = magnitude >= 30 ? "text-red-300" : magnitude >= 15 ? "text-yellow-200" : "text-fg-muted";
   return <span className={color}>{magnitude} {delta > 0 ? "above" : "below"} baseline{state}</span>;
 }
-
 const EMPTY_VITALS = { tempC: "", sbp: "", dbp: "", resp: "", pain: "", note: "" };
-
 function Panel({ patient, onChanged, onClose }: { patient: PatientView | null; onChanged: () => Promise<void>; onClose: () => void }) {
   const [form, setForm] = useState(EMPTY_VITALS);
   const [ctas, setCtas] = useState("3");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-
   useEffect(() => {
     if (patient) setCtas(String(patient.ctas));
     setForm(EMPTY_VITALS);
     setError("");
   }, [patient?.id]);
-
   if (!patient) {
     return (
       <aside className="hidden text-sm text-fg-muted lg:block lg:pt-12">
@@ -247,13 +272,12 @@ function Panel({ patient, onChanged, onClose }: { patient: PatientView | null; o
       </aside>
     );
   }
-
   const update = (key: keyof typeof EMPTY_VITALS) => (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((prev) => ({ ...prev, [key]: event.target.value }));
-
   async function act(action: string) {
     setBusy(true);
     setError("");
+
     try {
       const vitals: Record<string, number | string> = {};
       if (form.tempC) {
@@ -282,7 +306,6 @@ function Panel({ patient, onChanged, onClose }: { patient: PatientView | null; o
       setBusy(false);
     }
   }
-
   return (
     <aside className="card h-fit p-5 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto">
       <div className="flex items-start justify-between gap-3">
@@ -297,7 +320,6 @@ function Panel({ patient, onChanged, onClose }: { patient: PatientView | null; o
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M4 4l8 8M12 4l-8 8" /></svg>
         </button>
       </div>
-
       <h3 className="mt-6 text-sm font-medium">Vitals</h3>
       <div className="mt-2 grid grid-cols-2 gap-3">
         <label className="field">Temperature °C<input className="input" inputMode="decimal" value={form.tempC} onChange={update("tempC")} /></label>
@@ -314,9 +336,7 @@ function Panel({ patient, onChanged, onClose }: { patient: PatientView | null; o
       <label className="field mt-3">Note
         <textarea className="input" rows={2} value={form.note} onChange={update("note")} />
       </label>
-
       {error && <p className="mt-3 whitespace-pre-line text-sm text-red-300">{error}</p>}
-
       <div className="mt-5 space-y-2">
         <button disabled={busy} className="btn btn-primary w-full" onClick={() => act("reassessed_no_change")}>Reassessed, no change</button>
         <div className="grid grid-cols-2 gap-2">

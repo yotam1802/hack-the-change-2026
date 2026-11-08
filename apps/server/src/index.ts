@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "./env.js";
 import { createServer } from "node:http";
 import { WebSocketServer } from "ws";
 import { MemoryBus } from "./bus/memory.js";

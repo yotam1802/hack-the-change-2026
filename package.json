@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "concurrently -n server,sim,ui -c blue,green,magenta \"npm run dev -w @waitwatch/server\" \"npm run dev -w @waitwatch/simulator\" \"npm run dev -w @waitwatch/dashboard\"",
     "test": "npm run test -w @waitwatch/server",
+    "typecheck": "tsc --noEmit -p apps/server/tsconfig.json && tsc --noEmit -p apps/dashboard/tsconfig.json",
     "load": "npm run load -w @waitwatch/simulator --",
     "synth": "npm run synth -w @waitwatch/infra"
   },

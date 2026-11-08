@@ -1,11 +1,26 @@
+# Node and frontend output
 node_modules/
 dist/
-data/
+.vite/
+coverage/
 *.tsbuildinfo
+
+# Local database and generated cloud infrastructure
+apps/server/data/
+data/
 .cdk.staging/
 cdk.out/
+
+# Local Arduino build / Python environment
+firmware/sketch/build/
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+
+# Local configuration and OS files
 .env
 .env.*
 !.env.example
 .DS_Store
-coverage/
+__MACOSX/

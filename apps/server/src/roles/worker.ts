@@ -9,8 +9,9 @@ import type { Realtime } from "../realtime/hub.js";
 import type { StateStore } from "../state/store.js";
 import { log } from "../log.js";
 
-/** Last bpm persisted for each patient, so a repeat of the same value is not pushed. */
-const knownBpm = new Map<string, number | null>();
+/** Avoid redundant WebSocket events, but do notify when the range changes. */
+type LastHeartRate = { bpm: number | null; bpmMin: number | null; bpmMax: number | null };
+const lastPushed = new Map<string, LastHeartRate>();
 const lastAiAnalysis = new Map<string, number>();
 
 function bpmOf(value: unknown): number | null {
@@ -68,16 +69,26 @@ export async function handleEnvelope(
       }
     }
     if (latest) {
-      const previousBpm = knownBpm.has(patient.id) ? knownBpm.get(patient.id)! : bpmOf(patient.last_bpm);
-      const nextBpm = latest.bpm;
-      knownBpm.set(patient.id, nextBpm);
-      if (previousBpm !== nextBpm) {
+      const previous = lastPushed.get(patient.id) ?? {
+        bpm: bpmOf(patient.last_bpm),
+        bpmMin: bpmOf(patient.last_bpm_min),
+        bpmMax: bpmOf(patient.last_bpm_max),
+      };
+      const next: LastHeartRate = {
+        bpm: latest.bpm,
+        bpmMin: latest.bpmMin ?? null,
+        bpmMax: latest.bpmMax ?? null,
+      };
+      lastPushed.set(patient.id, next);
+      if (previous.bpm !== next.bpm || previous.bpmMin !== next.bpmMin || previous.bpmMax !== next.bpmMax) {
         await deps.rt.push(patient.unit_id, {
           type: "heart_rate",
           patientId: patient.id,
           latest: {
             ts: latest.ts,
             bpm: latest.bpm,
+            bpmMin: latest.bpmMin ?? null,
+            bpmMax: latest.bpmMax ?? null,
             activity: latest.activity,
             skinTempC: latest.skinTempC,
             spo2: latest.spo2,

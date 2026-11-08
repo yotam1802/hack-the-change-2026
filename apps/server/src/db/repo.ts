@@ -34,6 +34,8 @@ CREATE TABLE IF NOT EXISTS patients (
   skin_temp_c double precision,
   last_ts double precision,
   last_bpm double precision,
+  last_bpm_min integer,
+  last_bpm_max integer,
   last_activity text,
   last_skin double precision,
   last_spo2 double precision,
@@ -47,6 +49,8 @@ CREATE TABLE IF NOT EXISTS readings (
   device_id text NOT NULL,
   seq int NOT NULL,
   bpm double precision,
+  bpm_range_min integer,
+  bpm_range_max integer,
   ibi_ms jsonb,
   signal_quality double precision,
   activity text,
@@ -133,6 +137,8 @@ CREATE TABLE IF NOT EXISTS readings (
   device_id text NOT NULL,
   seq int NOT NULL,
   bpm double precision,
+  bpm_range_min integer,
+  bpm_range_max integer,
   ibi_ms jsonb,
   signal_quality double precision,
   activity text,
@@ -158,6 +164,14 @@ export async function migrate(db: Db): Promise<void> {
     );
     await db.exec(without);
   }
+  // Existing PGlite/Postgres installations may have been created before
+  // bpmMin/bpmMax were added to the shared incoming reading schema.
+  await db.exec(`
+    ALTER TABLE patients ADD COLUMN IF NOT EXISTS last_bpm_min integer;
+    ALTER TABLE patients ADD COLUMN IF NOT EXISTS last_bpm_max integer;
+    ALTER TABLE readings ADD COLUMN IF NOT EXISTS bpm_range_min integer;
+    ALTER TABLE readings ADD COLUMN IF NOT EXISTS bpm_range_max integer;
+  `);
 }
 
 async function ensureDayPartitions(db: Db) {
@@ -206,6 +220,8 @@ export type PatientRow = {
   skin_temp_c: number | null;
   last_ts: number | null;
   last_bpm: number | null;
+  last_bpm_min: number | null;
+  last_bpm_max: number | null;
   last_activity: string | null;
   last_skin: number | null;
   last_spo2: number | null;
@@ -297,6 +313,8 @@ export function toView(row: PatientRow, prompts: PromptRow[]) {
         : {
             ts: num(row.last_ts) ?? 0,
             bpm: num(row.last_bpm),
+            bpmMin: num(row.last_bpm_min),
+            bpmMax: num(row.last_bpm_max),
             activity: (row.last_activity ?? "rest") as "rest" | "light" | "active",
             skinTempC: num(row.last_skin),
             spo2: num(row.last_spo2),
@@ -486,8 +504,9 @@ export async function persistMonitoring(
     `UPDATE patients SET
       hr_status=$2, hr_bpm=$3, hr_spread=$4, hr_captured_at=$5, hr_abnormal=$6,
       skin_status=$7, skin_temp_c=$8,
-      last_ts=$9, last_bpm=$10, last_activity=$11, last_skin=$12, last_spo2=$13, last_signal=$14, last_fall=$15,
-      runtime=$16::jsonb
+      last_ts=$9, last_bpm=$10, last_bpm_min=$11, last_bpm_max=$12,
+      last_activity=$13, last_skin=$14, last_spo2=$15, last_signal=$16, last_fall=$17,
+      runtime=$18::jsonb
      WHERE id=$1`,
     [
       patientId,
@@ -500,6 +519,8 @@ export async function persistMonitoring(
       skin.tempC ?? null,
       latest?.ts ?? null,
       latest?.bpm ?? null,
+      latest?.bpmMin ?? null,
+      latest?.bpmMax ?? null,
       latest?.activity ?? null,
       latest?.skinTempC ?? null,
       latest?.spo2 ?? null,
@@ -517,7 +538,7 @@ export async function persistMonitoring(
 }
 
 async function insertReadings(db: Db, patientId: string, deviceId: string, seq: number, readings: Reading[]) {
-  const cols = 13;
+  const cols = 15;
   for (let i = 0; i < readings.length; i += 80) {
     const chunk = readings.slice(i, i + 80);
     const params: unknown[] = [];
@@ -529,6 +550,8 @@ async function insertReadings(db: Db, patientId: string, deviceId: string, seq: 
         deviceId,
         seq,
         r.bpm,
+        r.bpmMin ?? null,
+        r.bpmMax ?? null,
         JSON.stringify(r.ibiMs),
         r.signalQuality,
         r.activity,
@@ -538,10 +561,14 @@ async function insertReadings(db: Db, patientId: string, deviceId: string, seq: 
         r.spo2,
         r.spo2Simulated,
       );
-      return `($${b + 1},$${b + 2},$${b + 3},$${b + 4},$${b + 5},$${b + 6}::jsonb,$${b + 7},$${b + 8},$${b + 9},$${b + 10},$${b + 11},$${b + 12},$${b + 13})`;
+      // ibi_ms is the JSONB column (8th parameter in each row).
+      const placeholders = Array.from({ length: cols }, (_, position) =>
+        `$${b + position + 1}${position === 7 ? "::jsonb" : ""}`,
+      );
+      return `(${placeholders.join(",")})`;
     });
     await db.query(
-      `INSERT INTO readings (patient_id, ts_ms, device_id, seq, bpm, ibi_ms, signal_quality, activity, motion_mag, fall_detected, skin_temp_c, spo2, spo2_simulated)
+      `INSERT INTO readings (patient_id, ts_ms, device_id, seq, bpm, bpm_range_min, bpm_range_max, ibi_ms, signal_quality, activity, motion_mag, fall_detected, skin_temp_c, spo2, spo2_simulated)
        VALUES ${values.join(",")} ON CONFLICT DO NOTHING`,
       params,
     );
