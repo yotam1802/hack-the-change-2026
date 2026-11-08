@@ -46,6 +46,7 @@ import { initialState, resetHrBaseline, type RuntimeState } from "../rules/engin
 import { parseRuntime } from "../db/repo.js";
 import type { StateStore } from "../state/store.js";
 import { log } from "../log.js";
+import { requireNurse, verifiedNurse } from "../auth/nurse.js";
 
 export type HttpDeps = {
   db: Db;
@@ -63,13 +64,15 @@ function asyncRoute(fn: (req: Request, res: Response) => Promise<void>) {
 }
 
 function nurse(req: Request) {
-  return req.header("x-nurse-id")?.trim() || "";
+  return verifiedNurse(req);
 }
 
 export function createApp(deps: HttpDeps) {
   const app = express();
   app.use(cors());
   app.use(express.json({ limit: "1mb" }));
+  // Public endpoints and device ingestion are exempt inside this middleware.
+  app.use("/api", requireNurse);
 
   app.get("/api/health", (_req, res) => {
     res.json({ ok: true, role: process.env.ROLE ?? "all", mode: deps.mode });
@@ -120,6 +123,7 @@ export function createApp(deps: HttpDeps) {
 
   app.post("/api/enrollments", asyncRoute(async (req, res) => {
     const input = enrollSchema.parse(req.body);
+    input.nurseId = nurse(req);
     const device = await ensureDevice(deps.db, input.deviceId);
     if (device.patient_id) {
       res.status(409).json({ error: "That wearable is already paired" });
@@ -174,6 +178,7 @@ export function createApp(deps: HttpDeps) {
 
   app.post("/api/patients/:id/actions", asyncRoute(async (req, res) => {
     const action = nurseActionSchema.parse(req.body);
+    action.nurseId = nurse(req);
     const patient = await getPatient(deps.db, req.params.id);
     if (!patient) {
       res.status(404).json({ error: "Not found" });

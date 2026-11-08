@@ -17,6 +17,7 @@ import { enqueueJob, pollSqs } from "./aws/sqs.js";
 import { DynamoState } from "./state/store.js";
 import { ApigwRealtime } from "./realtime/hub.js";
 import { handleEnvelope } from "./roles/worker.js";
+import { localDemoMode, verifyNurseToken } from "./auth/nurse.js";
 
 export async function boot(listenPort?: number) {
   const role = process.env.ROLE ?? "all";
@@ -57,7 +58,9 @@ export async function boot(listenPort?: number) {
 
   if (rt instanceof LocalRealtime) {
     const wss = new WebSocketServer({ server, path: "/ws" });
-    wss.on("connection", (socket) => rt.add(socket));
+    wss.on("connection", (socket) => rt.add(socket, async (token) => {
+      try { await verifyNurseToken(token); return true; } catch { return false; }
+    }, localDemoMode()));
   }
 
   if (role === "all" || role === "worker") {

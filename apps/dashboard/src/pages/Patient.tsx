@@ -62,7 +62,7 @@ export function PatientPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-8 px-6 py-8">
       <div>
-        <Link to="/" className="text-sm text-fg-muted hover:text-fg">← Waiting room</Link>
+        <Link to="/dashboard" className="text-sm text-fg-muted hover:text-fg">← Waiting room</Link>
         <h1 className="mt-3 text-xl font-semibold">{patient.displayName}</h1>
         <p className="mt-1 flex flex-wrap items-center gap-x-3 text-sm text-fg-muted">
           <CtasLabel level={patient.ctas} />

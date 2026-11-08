@@ -27,7 +27,7 @@ async function waitForHealth() {
 async function enroll(demo: (typeof DEMOS)[number]) {
   const res = await fetch(`${baseUrl}/api/enrollments`, {
     method: "POST",
-    headers: { "content-type": "application/json", "x-nurse-id": "sim" },
+    headers: { "content-type": "application/json", "x-nurse-id": "sim", "x-waitwatch-demo-simulator": "1" },
     body: JSON.stringify({
       displayName: demo.name,
       ctas: demo.ctas,
@@ -38,7 +38,7 @@ async function enroll(demo: (typeof DEMOS)[number]) {
     }),
   });
   if (res.status === 409) {
-    const devices = await (await fetch(`${baseUrl}/api/devices`)).json();
+    const devices = await (await fetch(`${baseUrl}/api/devices`, { headers: { "x-waitwatch-demo-simulator": "1" } })).json();
     const existing = devices.devices.find((device: { id: string }) => device.id === demo.deviceId);
     return existing?.token as string;
   }
@@ -117,7 +117,7 @@ async function load() {
     const id = `swarm-${index}`;
     const created = await fetch(`${baseUrl}/api/devices`, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-nurse-id": "sim" },
+      headers: { "content-type": "application/json", "x-nurse-id": "sim", "x-waitwatch-demo-simulator": "1" },
       body: JSON.stringify({ id }),
     });
     if (!created.ok && created.status !== 201) {
@@ -127,7 +127,7 @@ async function load() {
     const device = created.ok ? await created.json() : { token: `dev-${id}` };
     const enrollRes = await fetch(`${baseUrl}/api/enrollments`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-waitwatch-demo-simulator": "1" },
       body: JSON.stringify({
         displayName: `Sim ${index}`,
         ctas: ((index % 5) + 1) as 1 | 2 | 3 | 4 | 5,

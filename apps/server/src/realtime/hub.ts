@@ -13,18 +13,46 @@ type Socket = { unitId?: string; socket: WebSocket };
 export class LocalRealtime {
   private sockets = new Set<Socket>();
 
-  add(socket: WebSocket) {
+  add(socket: WebSocket, authorize: (token: string) => Promise<boolean>, allowLocalDemo = false) {
     const entry: Socket = { socket };
+    let approved = allowLocalDemo;
+    let recheck: ReturnType<typeof setInterval> | undefined;
     this.sockets.add(entry);
     socket.on("message", (raw) => {
-      try {
-        const body = JSON.parse(String(raw)) as { type?: string; unitId?: string };
-        if (body.type === "subscribe" && body.unitId) entry.unitId = body.unitId;
-      } catch {
-        /* ignore malformed client frames */
-      }
+      void (async () => {
+        try {
+          const body = JSON.parse(String(raw)) as { type?: string; unitId?: string; token?: string };
+          if (body.type === "auth" && typeof body.token === "string") {
+            approved = await authorize(body.token);
+            if (!approved) {
+              socket.close(1008, "Nurse access required");
+              return;
+            }
+            // Do not keep pushing patient data forever after the token expires.
+            if (recheck) clearInterval(recheck);
+            const receivedToken = body.token;
+            recheck = setInterval(() => {
+              void authorize(receivedToken).then((stillValid) => {
+                if (!stillValid) socket.close(1008, "Nurse session expired");
+              }).catch(() => socket.close(1008, "Nurse session check failed"));
+            }, 60_000);
+            recheck.unref?.();
+            socket.send(JSON.stringify({ type: "auth_ok" }));
+            return;
+          }
+          if (body.type === "subscribe" && body.unitId) {
+            if (!approved) {
+              socket.close(1008, "Nurse login required");
+              return;
+            }
+            entry.unitId = body.unitId;
+          }
+        } catch {
+          socket.close(1008, "Invalid subscription");
+        }
+      })();
     });
-    socket.on("close", () => this.sockets.delete(entry));
+    socket.on("close", () => { if (recheck) clearInterval(recheck); this.sockets.delete(entry); });
     return entry;
   }
 

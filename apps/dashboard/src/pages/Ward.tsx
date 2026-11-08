@@ -1,7 +1,7 @@
 import { useEffect, useState, type ChangeEvent } from "react";
 import { Link } from "react-router-dom";
 import { CTAS_LABEL, REASON_LABEL, type PatientView, type PromptView } from "@waitwatch/shared";
-import { api, nurseId, type BoardResponse } from "../api";
+import { api, nurseId, getSessionToken, type BoardResponse } from "../api";
 import { CTAS_COLOR, CtasLabel } from "../ui";
 
 type LiveMessage = {
@@ -56,10 +56,18 @@ export function Ward() {
     const proto = location.protocol === "https:" ? "wss" : "ws";
     const socket = new WebSocket(`${proto}://${location.host}/ws`);
 
-    socket.onopen = () => socket.send(JSON.stringify({ type: "subscribe", unitId: "ed-waiting" }));
+    socket.onopen = () => {
+      const token = getSessionToken();
+      if (token) socket.send(JSON.stringify({ type: "auth", token }));
+      else socket.send(JSON.stringify({ type: "subscribe", unitId: "ed-waiting" })); // explicit local demo mode only
+    };
 
     socket.onmessage = (event) => {
       const body = JSON.parse(event.data) as LiveMessage;
+      if (body.type === "auth_ok") {
+        socket.send(JSON.stringify({ type: "subscribe", unitId: "ed-waiting" }));
+        return;
+      }
       if (body.type === "snapshot" && body.patients) {
         const incoming = body.patients;
         setPatients((current) => applySnapshot(current, incoming));
