@@ -47,25 +47,44 @@ async function enroll(demo: (typeof DEMOS)[number]) {
   return body.deviceToken as string;
 }
 
+// The local database remembers each device's previous sequence across restarts.
+// Use a time-based initial sequence for demo devices so a restarted simulator
+// doesn't silently get its readings rejected as old batches. SQL `seq` is int32.
+function initialDemoSequence(): number {
+  return Math.floor((Date.now() - Date.UTC(2020, 0, 1)) / 1000) + 60;
+}
+
 function runPatient(demo: (typeof DEMOS)[number], token: string) {
   let second = 0;
-  let seq = 0;
+  let seq = initialDemoSequence();
+  let sending = false;
   const started = Date.now();
-  const buffer: ReturnType<typeof sample>[] = [];
+
+  // One request per patient per real second. Preserve every accelerated sample
+  // inside the batch, including the one-off fall event and dropout intervals.
+  // This also avoids the multiple overlapping requests per second that could
+  // arrive out of order and be rejected as stale sequences.
   const timer = setInterval(() => {
-    for (let i = 0; i < demo.speed; i++) {
-      buffer.push(sample(demo.scenario, second, started));
-      second += 1;
-      if (buffer.length >= 5) {
-        const readings = buffer.splice(0, 5);
-        const current = seq++;
-        void fetch(`${baseUrl}/api/readings`, {
-          method: "POST",
-          headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
-          body: JSON.stringify({ deviceId: demo.deviceId, seq: current, readings }),
-        }).catch(() => undefined);
-      }
-    }
+    if (sending) return;
+    const readings = Array.from({ length: demo.speed }, () => sample(demo.scenario, second++, started));
+    const current = seq++;
+    sending = true;
+    void fetch(`${baseUrl}/api/readings`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify({ deviceId: demo.deviceId, seq: current, readings }),
+    })
+      .then((response) => {
+        if (!response.ok) {
+          console.warn(`Demo ingest failed for ${demo.deviceId}: HTTP ${response.status}`);
+        }
+      })
+      .catch((error: unknown) => {
+        console.warn(`Demo ingest failed for ${demo.deviceId}:`, error);
+      })
+      .finally(() => {
+        sending = false;
+      });
   }, 1000);
   return timer;
 }
