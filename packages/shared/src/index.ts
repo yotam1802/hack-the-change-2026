@@ -43,6 +43,8 @@ export const CTAS_LABEL: Record<Ctas, string> = {
 export const readingSchema = z.object({
   ts: z.number(),
   bpm: z.number().nullable(),
+  bpmMin: z.number().int().nullable().optional(),
+  bpmMax: z.number().int().nullable().optional(),
   ibiMs: z.array(z.number()).default([]),
   signalQuality: z.number().min(0).max(1),
   activity: activitySchema,
