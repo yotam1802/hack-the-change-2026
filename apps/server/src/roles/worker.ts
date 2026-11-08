@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { GeminiJob, IngestEnvelope } from "@waitwatch/shared";
 import type { Db } from "../db/db.js";
-import { getPatient, parseRuntime, persistMonitoring } from "../db/repo.js";
+import { getPatient, insertPrompt, parseRuntime, persistMonitoring } from "../db/repo.js";
 import { applyBatch, hrView, initialState, type RuntimeState } from "../rules/engine.js";
 import type { MemoryBus } from "../bus/memory.js";
 import type { Metrics } from "../metrics.js";
@@ -52,6 +52,20 @@ export async function handleEnvelope(
         patientId: patient.id,
         promptId: prompt.id,
       });
+    }
+    const highBpmReading = envelope.readings
+      .filter((reading) => reading.bpm != null && reading.bpm >= 120)
+      .sort((a, b) => (b.bpm ?? 0) - (a.bpm ?? 0))[0];
+    if (highBpmReading?.bpm != null) {
+      const prompt = await insertPrompt(deps.db, patient.id, {
+        kind: "high_bpm_static",
+        severity: "urgent",
+        message: `Heart rate is ${Math.round(highBpmReading.bpm)} BPM, at or above the 120 BPM safety threshold. Verify the patient and reassess clinically.`,
+      }, Date.now(), envelope.seq);
+      if (prompt) {
+        deps.metrics.noteAlert(Date.now() - envelope.receivedAt);
+        await deps.rt.push(patient.unit_id, { type: "prompt", prompt });
+      }
     }
     if (latest) {
       const previousBpm = knownBpm.has(patient.id) ? knownBpm.get(patient.id)! : bpmOf(patient.last_bpm);

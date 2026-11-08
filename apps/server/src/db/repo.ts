@@ -673,6 +673,24 @@ export async function recentRollup(db: Db, patientId: string) {
   };
 }
 
+export async function recentBpmStats(db: Db, patientId: string) {
+  const result = await db.query<{ ts_ms: number; bpm: number }>(
+    `SELECT ts_ms, bpm FROM readings
+     WHERE patient_id=$1 AND ts_ms >= $2 AND bpm IS NOT NULL
+     ORDER BY ts_ms ASC LIMIT 300`,
+    [patientId, Date.now() - 30_000],
+  );
+  const values = result.rows.map((row) => Number(row.bpm)).filter(Number.isFinite);
+  if (!values.length) return null;
+  const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+  const variance = values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length;
+  return {
+    sampleCount: values.length,
+    bpmStdDev: Math.sqrt(variance),
+    readings: result.rows.map((row) => ({ ts: Number(row.ts_ms), bpm: Number(row.bpm) })),
+  };
+}
+
 export async function lastOfficialTemp(db: Db, patientId: string) {
   const result = await db.query<{ temp_c: number | null }>(
     `SELECT temp_c FROM manual_vitals WHERE patient_id=$1 AND temp_c IS NOT NULL ORDER BY ts_ms DESC LIMIT 1`,

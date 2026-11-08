@@ -42,6 +42,7 @@ describe("de-identification", () => {
       skinBaselineC: 33.4,
       officialTempC: 36.8,
       rollup: null,
+      recentBpmStats: null,
       latest: null,
       flags: [],
     });

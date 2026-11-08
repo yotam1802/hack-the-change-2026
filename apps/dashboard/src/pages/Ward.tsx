@@ -63,11 +63,14 @@ export function Ward() {
   }, []);
 
   const current = patients.find((patient) => patient.id === selected) ?? null;
-  const highBpmPatients = patients.filter((patient) => (patient.latest?.bpm ?? 0) > 100);
+  const alertPatients = patients.filter((patient) =>
+    (patient.latest?.bpm ?? 0) >= 120 ||
+    patient.openPrompts.some((prompt) => ["ai_serious_vital", "high_bpm_static"].includes(prompt.kind) && prompt.severity === "urgent" && !prompt.ackedAt),
+  );
 
   return (
     <div className="grid w-full gap-6 px-6 py-8 lg:grid-cols-[minmax(0,1fr)_320px] lg:pl-56">
-      {highBpmPatients.length > 0 && (
+      {alertPatients.length > 0 && (
         <aside
           aria-live="assertive"
           aria-label="High heart rate alerts"
@@ -75,16 +78,25 @@ export function Ward() {
         >
           <h2 className="font-semibold text-red-400">High heart rate alert</h2>
           <div className="mt-2 grid gap-2">
-            {highBpmPatients.map((patient) => (
+            {alertPatients.map((patient) => {
+              const alert = patient.openPrompts.find((prompt) => ["ai_serious_vital", "high_bpm_static"].includes(prompt.kind) && prompt.severity === "urgent" && !prompt.ackedAt);
+              const isHighBpm = (patient.latest?.bpm ?? 0) >= 120;
+              return (
               <button
                 key={patient.id}
                 className="rounded border border-red-500/50 bg-black px-3 py-2 text-left text-sm hover:border-red-400 hover:bg-red-950/50"
                 onClick={() => setSelected(patient.id)}
               >
                 <span className="font-medium">{patient.displayName}</span>
-                <span className="ml-2 font-semibold text-red-400">{patient.latest?.bpm} BPM</span>
+                <span className="ml-2 font-semibold text-red-400">{isHighBpm ? "Static alert" : "AI alert"}</span>
+                <span className="mt-1 block text-xs text-red-200">
+                  {isHighBpm
+                    ? `Heart rate is ${patient.latest?.bpm} BPM, at or above the 120 BPM safety threshold.`
+                    : alert?.message}
+                </span>
               </button>
-            ))}
+              );
+            })}
           </div>
           <p className="mt-3 text-xs text-red-300">Verify the patient and reassess clinically.</p>
         </aside>

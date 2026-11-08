@@ -8,6 +8,7 @@ import {
   insertPrompt,
   lastOfficialTemp,
   openPromptRows,
+  recentBpmStats,
   recentRollup,
   setPromptExplanation,
   unitPatients,
@@ -21,10 +22,11 @@ import { log } from "../log.js";
 async function summaryFor(db: Db, patientId: string): Promise<SummaryPatient | null> {
   const patient = await getPatient(db, patientId);
   if (!patient) return null;
-  const [rollup, temp, prompts] = await Promise.all([
+  const [rollup, temp, prompts, bpmStats] = await Promise.all([
     recentRollup(db, patientId),
     lastOfficialTemp(db, patientId),
     openPromptRows(db, patientId),
+    recentBpmStats(db, patientId),
   ]);
   return {
     id: patient.id,
@@ -35,6 +37,7 @@ async function summaryFor(db: Db, patientId: string): Promise<SummaryPatient | n
     skinBaselineC: patient.skin_temp_c == null ? null : Number(patient.skin_temp_c),
     officialTempC: temp,
     rollup,
+    recentBpmStats: bpmStats,
     latest: patient.last_ts == null ? null : {
       ts: Number(patient.last_ts),
       bpm: patient.last_bpm == null ? null : Number(patient.last_bpm),
@@ -63,7 +66,7 @@ export async function runJob(db: Db, rt: Realtime, job: GeminiJob) {
       const summary = await summaryFor(db, job.patientId);
       if (!summary) throw new Error("patient missing");
       const assessment = await analyzeVitals(deidentify(summary));
-      if (assessment?.serious) {
+      if (assessment?.status === "ALERT") {
         const patient = await getPatient(db, job.patientId);
         if (patient) {
           const prompt = await insertPrompt(db, patient.id, {
@@ -74,7 +77,7 @@ export async function runJob(db: Db, rt: Realtime, job: GeminiJob) {
           if (prompt) await rt.push(patient.unit_id, { type: "prompt", prompt });
         }
       }
-      text = assessment?.reason ?? "AI screening found no serious pattern. Verify the patient and vitals on screen.";
+      text = assessment?.status ?? "SAFE";
     } else if (job.patientId) {
       const summary = await summaryFor(db, job.patientId);
       if (!summary) throw new Error("patient missing");

@@ -21,7 +21,7 @@ docker compose -f infra/docker-compose.yml up -d
 DATABASE_URL=postgres://waitwatch:waitwatch@localhost:5432/waitwatch npm run dev -w @waitwatch/server
 ```
 
-Create a root `.env` file with `GEMINI_API_KEY` to enable Gemini note drafting and screening of the latest de-identified wearable BPM data every 30 seconds. The server loads this file automatically with `dotenv`; existing shell environment variables take precedence. A validated Gemini response marked `serious: true` creates an urgent nurse prompt; it never changes CTAS or replaces clinical assessment. Without the key, notes use the rules-based draft and no AI screening jobs are queued.
+Create a root `.env` file with `GEMINI_API_KEY` to enable Gemini note drafting and screening of the latest de-identified wearable BPM data every 30 seconds. The server loads this file automatically with `dotenv`; existing shell environment variables take precedence. Gemini must return only `SAFE` or `ALERT`; a validated `ALERT` creates an urgent nurse prompt and dashboard notification, while `SAFE` creates no alert. The screening never changes CTAS or replaces clinical assessment. Without the key, notes use the rules-based draft and no AI screening jobs are queued.
 
 ## Load
 
