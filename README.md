@@ -1,4 +1,4 @@
-# WaitWatch — waiting-room monitoring prototype
+# WaitWatch — waiting-room monitoring prototype!
 
 WaitWatch is a hackathon demonstration of a waiting-room dashboard using a React/Vite UI, an Express/TypeScript API, an embedded PGlite database (or PostgreSQL), a six-patient scripted simulator, and an experimental Arduino HW-827 pulse bridge.
 
