@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
 import { Link, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { NURSES, nurseId, setNurseId } from "./api";
+import { useEffect, useState } from "react";
+
 import { Checkin } from "./pages/Checkin";
 import { Enroll } from "./pages/Enroll";
 import { PatientPage } from "./pages/Patient";

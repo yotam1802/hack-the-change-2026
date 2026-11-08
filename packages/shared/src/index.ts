@@ -155,6 +155,8 @@ export type PromptView = z.infer<typeof promptViewSchema>;
 export const latestVitalsSchema = z.object({
   ts: z.number(),
   bpm: z.number().nullable(),
+  bpmMin: z.number().int().nullable().optional(),
+  bpmMax: z.number().int().nullable().optional(),
   activity: activitySchema,
   skinTempC: z.number().nullable(),
   spo2: z.number().nullable(),
