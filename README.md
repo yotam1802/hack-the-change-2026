@@ -12,7 +12,7 @@ npm test
 npm run dev
 ```
 
-Open http://localhost:5173. The simulator enrolls six scripted patients (stable, tachycardia, fall, loose sensor, rising skin temperature, irregular rhythm) and streams them sped up so the prompts appear within a minute.
+Open http://localhost:5173. The simulator enrolls six scripted patients (stable, tachycardia, fall, loose sensor, rising skin temperature, irregular rhythm) and streams them sped up so the prompts appear within a minute. 
 
 Postgres is embedded for local development. To use Docker Postgres instead:
 
