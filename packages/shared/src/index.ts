@@ -80,6 +80,8 @@ export type ManualVitals = z.infer<typeof manualVitalsSchema>;
 
 export const enrollSchema = z.object({
   displayName: z.string().min(1).max(80),
+  complaint: z.string().max(500).optional(),
+  symptomOnset: z.string().max(120).optional(),
   ctas: ctasSchema,
   enrollmentReason: enrollmentReasonSchema,
   deviceId: z.string().min(1),

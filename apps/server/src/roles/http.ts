@@ -142,6 +142,8 @@ export function createApp(deps: HttpDeps) {
       ctas: input.ctas,
       reason: input.enrollmentReason,
       deviceId: input.deviceId,
+      complaint: input.complaint ?? null,
+      symptomOnset: input.symptomOnset ?? null,
     });
     if (input.vitals) await recordVitals(deps, patient.id, patient.unit_id, input.nurseId, input.vitals);
     res.status(201).json({ patient: toView(patient, []), deviceToken: device.token });

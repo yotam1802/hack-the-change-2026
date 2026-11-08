@@ -5,6 +5,7 @@ import { Checkin } from "./pages/Checkin";
 import { Enroll } from "./pages/Enroll";
 import { PatientPage } from "./pages/Patient";
 import { Ward } from "./pages/Ward";
+import logoUrl from "../../../logo.jpeg";
 
 export function App() {
   const [nurse, setNurse] = useState(nurseId());
@@ -15,9 +16,12 @@ export function App() {
   return (
     <div className="min-h-screen">
       {!patientFacing && (
-        <header className="border-b border-line">
+        <header className="fixed inset-x-0 top-0 z-30 border-b border-line bg-ink/95 backdrop-blur">
           <div className="mx-auto flex h-14 max-w-6xl items-center gap-8 px-6">
-            <Link to="/" className="font-semibold">WaitWatch</Link>
+            <Link to="/" className="flex items-center gap-2 font-semibold">
+              <img src={logoUrl} alt="" className="h-8 w-8 rounded object-cover" />
+              <span>WaitWatch</span>
+            </Link>
             <nav className="flex gap-5 text-sm">
               <NavItem to="/" end>Monitor</NavItem>
               <NavItem to="/enroll">Enroll</NavItem>
@@ -35,12 +39,14 @@ export function App() {
           </div>
         </header>
       )}
-      <Routes>
-        <Route path="/" element={<Ward />} />
-        <Route path="/enroll" element={<Enroll />} />
-        <Route path="/patients/:id" element={<PatientPage />} />
-        <Route path="/checkin/:code" element={<Checkin />} />
-      </Routes>
+      <main className={patientFacing ? "" : "pt-14"}>
+        <Routes>
+          <Route path="/" element={<Ward />} />
+          <Route path="/enroll" element={<Enroll />} />
+          <Route path="/patients/:id" element={<PatientPage />} />
+          <Route path="/checkin/:code" element={<Checkin />} />
+        </Routes>
+      </main>
     </div>
   );
 }

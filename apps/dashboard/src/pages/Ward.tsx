@@ -30,7 +30,8 @@ export function Ward() {
   const current = patients.find((patient) => patient.id === selected) ?? null;
 
   return (
-    <div className="mx-auto grid max-w-6xl gap-8 px-6 py-8 lg:grid-cols-[minmax(0,1fr)_340px]">
+    <div className="grid w-full gap-6 px-6 py-8 lg:grid-cols-[minmax(0,1fr)_320px] lg:pl-56">
+      <Legend />
       <section>
         <div className="mb-5 flex items-baseline gap-3">
           <h1 className="text-xl font-semibold">Waiting room</h1>
@@ -47,12 +48,54 @@ export function Ward() {
             <PatientCard key={patient.id} patient={patient} selected={patient.id === selected} onSelect={() => setSelected(patient.id)} />
           ))}
         </div>
-        {patients.length > 0 && (
-          <p className="mt-6 text-xs text-fg-faint">Skin temperature is approximate. SpO₂ is simulated in this build.</p>
-        )}
       </section>
       <Panel patient={current} onChanged={load} onClose={() => setSelected(null)} />
     </div>
+  );
+}
+
+function Legend() {
+  const ctas = [
+    [1, "Resuscitation"],
+    [2, "Emergent"],
+    [3, "Urgent"],
+    [4, "Less urgent"],
+    [5, "Non-urgent"],
+  ] as const;
+  const severities = [
+    ["#6b7480", "Info", "Informational prompt"],
+    ["#facc15", "Warning", "Needs attention"],
+    ["#f87171", "Urgent", "Priority prompt"],
+  ] as const;
+
+  return (
+    <aside aria-label="Color legend" className="card h-fit p-3 lg:fixed lg:left-4 lg:top-20 lg:z-20 lg:w-44">
+      <h2 className="text-xs font-semibold uppercase tracking-wider text-fg-faint">Legend</h2>
+      <div className="mt-3 grid gap-4">
+        <div>
+          <h3 className="mb-2 text-xs font-medium text-fg">CTAS priority</h3>
+          <ul className="space-y-1.5 text-xs text-fg-muted">
+            {ctas.map(([level, label]) => (
+              <li key={level} className="flex items-center gap-1.5">
+                <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-sm" style={{ background: CTAS_COLOR[level] }} />
+                <span>{level} <span className="text-fg-faint">{label}</span></span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div>
+          <h3 className="mb-2 text-xs font-medium text-fg">Prompt severity</h3>
+          <ul className="space-y-1.5 text-xs text-fg-muted">
+            {severities.map(([color, label, description]) => (
+              <li key={label} className="flex items-center gap-1.5">
+                <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full" style={{ background: color }} />
+                <span>{label}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </aside>
   );
 }
 
