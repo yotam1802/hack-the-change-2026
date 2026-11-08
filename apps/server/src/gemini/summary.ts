@@ -9,6 +9,7 @@ export type SummaryPatient = {
   skinBaselineC: number | null;
   officialTempC: number | null;
   rollup: { bpmMin: number | null; bpmMax: number | null; bpmAvg: number; skinAvg: number | null } | null;
+  latest: { ts: number; bpm: number | null; activity: string | null; signalQuality: number | null; spo2: number | null } | null;
   flags: Array<Pick<PromptView, "id" | "kind" | "severity" | "message">>;
 };
 
@@ -22,6 +23,7 @@ export function deidentify(patient: SummaryPatient, flag?: Pick<PromptView, "kin
     skinBaselineC: patient.skinBaselineC,
     officialTempC: patient.officialTempC,
     recent: patient.rollup,
+    latest: patient.latest,
     flag: flag ?? null,
     openFlags: patient.flags.map((item) => ({ kind: item.kind, severity: item.severity, message: item.message })),
   };

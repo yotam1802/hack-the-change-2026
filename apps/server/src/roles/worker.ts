@@ -1,4 +1,5 @@
-import type { IngestEnvelope } from "@waitwatch/shared";
+import { randomUUID } from "node:crypto";
+import type { GeminiJob, IngestEnvelope } from "@waitwatch/shared";
 import type { Db } from "../db/db.js";
 import { getPatient, parseRuntime, persistMonitoring } from "../db/repo.js";
 import { applyBatch, hrView, initialState, type RuntimeState } from "../rules/engine.js";
@@ -10,6 +11,7 @@ import { log } from "../log.js";
 
 /** Last bpm persisted for each patient, so a repeat of the same value is not pushed. */
 const knownBpm = new Map<string, number | null>();
+const lastAiAnalysis = new Map<string, number>();
 
 function bpmOf(value: unknown): number | null {
   if (value == null) return null;
@@ -18,7 +20,7 @@ function bpmOf(value: unknown): number | null {
 }
 
 export async function handleEnvelope(
-  deps: { db: Db; state: StateStore; rt: Realtime; metrics: Metrics; bus: { publishJob: (job: { id: string; type: "explain_prompt"; patientId?: string; promptId?: string }) => void } },
+  deps: { db: Db; state: StateStore; rt: Realtime; metrics: Metrics; bus: { publishJob: (job: GeminiJob) => void } },
   envelope: IngestEnvelope,
 ) {
   const started = Date.now();
@@ -70,6 +72,10 @@ export async function handleEnvelope(
           },
           hrBaseline: hrView(applied.state.hr),
         });
+      }
+      if (process.env.NODE_ENV !== "test" && process.env.GEMINI_API_KEY && latest.bpm != null && Date.now() - (lastAiAnalysis.get(patient.id) ?? 0) >= 30_000) {
+        lastAiAnalysis.set(patient.id, Date.now());
+        deps.bus.publishJob({ id: randomUUID(), type: "analyze_vitals", patientId: patient.id });
       }
     }
     return { state: applied.state, result: saved };

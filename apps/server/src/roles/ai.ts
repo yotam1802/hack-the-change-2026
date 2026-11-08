@@ -5,14 +5,16 @@ import {
   createJob,
   finishJob,
   getPatient,
+  insertPrompt,
   lastOfficialTemp,
   openPromptRows,
   recentRollup,
   setPromptExplanation,
   unitPatients,
 } from "../db/repo.js";
-import { draftText, handoffPayload, type SummaryPatient } from "../gemini/client.js";
+import { analyzeVitals, draftText, handoffPayload, type SummaryPatient } from "../gemini/client.js";
 import { mapPrompt } from "../db/repo.js";
+import { deidentify } from "../gemini/summary.js";
 import type { Realtime } from "../realtime/hub.js";
 import { log } from "../log.js";
 
@@ -33,6 +35,13 @@ async function summaryFor(db: Db, patientId: string): Promise<SummaryPatient | n
     skinBaselineC: patient.skin_temp_c == null ? null : Number(patient.skin_temp_c),
     officialTempC: temp,
     rollup,
+    latest: patient.last_ts == null ? null : {
+      ts: Number(patient.last_ts),
+      bpm: patient.last_bpm == null ? null : Number(patient.last_bpm),
+      activity: patient.last_activity,
+      signalQuality: patient.last_signal == null ? null : Number(patient.last_signal),
+      spo2: patient.last_spo2 == null ? null : Number(patient.last_spo2),
+    },
     flags: prompts.map(mapPrompt),
   };
 }
@@ -50,6 +59,22 @@ export async function runJob(db: Db, rt: Realtime, job: GeminiJob) {
       }
       const drafted = await draftText("handoff", handoffPayload(patients));
       text = drafted.text;
+    } else if (job.type === "analyze_vitals" && job.patientId) {
+      const summary = await summaryFor(db, job.patientId);
+      if (!summary) throw new Error("patient missing");
+      const assessment = await analyzeVitals(deidentify(summary));
+      if (assessment?.serious) {
+        const patient = await getPatient(db, job.patientId);
+        if (patient) {
+          const prompt = await insertPrompt(db, patient.id, {
+            kind: "ai_serious_vital",
+            severity: "urgent",
+            message: `AI screening flagged a potentially serious vital pattern: ${assessment.reason}`,
+          }, Date.now(), summary.latest?.ts ?? null);
+          if (prompt) await rt.push(patient.unit_id, { type: "prompt", prompt });
+        }
+      }
+      text = assessment?.reason ?? "AI screening found no serious pattern. Verify the patient and vitals on screen.";
     } else if (job.patientId) {
       const summary = await summaryFor(db, job.patientId);
       if (!summary) throw new Error("patient missing");
@@ -59,6 +84,7 @@ export async function runJob(db: Db, rt: Realtime, job: GeminiJob) {
       text = drafted.text;
       if (job.promptId) await setPromptExplanation(db, job.promptId, text);
     }
+
     await finishJob(db, job.id, text, "done");
     if (job.unitId) await rt.push(job.unitId, { type: "job", jobId: job.id, result: text });
     else if (job.patientId) {

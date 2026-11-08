@@ -63,9 +63,32 @@ export function Ward() {
   }, []);
 
   const current = patients.find((patient) => patient.id === selected) ?? null;
+  const highBpmPatients = patients.filter((patient) => (patient.latest?.bpm ?? 0) > 100);
 
   return (
     <div className="grid w-full gap-6 px-6 py-8 lg:grid-cols-[minmax(0,1fr)_320px] lg:pl-56">
+      {highBpmPatients.length > 0 && (
+        <aside
+          aria-live="assertive"
+          aria-label="High heart rate alerts"
+          className="fixed right-4 top-20 z-50 w-80 rounded-lg border border-red-500 bg-black p-4 text-white shadow-lg shadow-red-950/40"
+        >
+          <h2 className="font-semibold text-red-400">High heart rate alert</h2>
+          <div className="mt-2 grid gap-2">
+            {highBpmPatients.map((patient) => (
+              <button
+                key={patient.id}
+                className="rounded border border-red-500/50 bg-black px-3 py-2 text-left text-sm hover:border-red-400 hover:bg-red-950/50"
+                onClick={() => setSelected(patient.id)}
+              >
+                <span className="font-medium">{patient.displayName}</span>
+                <span className="ml-2 font-semibold text-red-400">{patient.latest?.bpm} BPM</span>
+              </button>
+            ))}
+          </div>
+          <p className="mt-3 text-xs text-red-300">Verify the patient and reassess clinically.</p>
+        </aside>
+      )}
       <Legend />
       <section>
         <div className="mb-5 flex items-baseline gap-3">

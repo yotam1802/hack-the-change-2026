@@ -1,11 +1,49 @@
 import { deidentify, handoffPayload, rulesDraft, type SummaryPatient } from "./summary.js";
 import { log } from "../log.js";
+import { z } from "zod";
 
 const SYSTEM = `You are a documentation assistant for an emergency waiting-room nurse.
 You do not diagnose. You do not assign or change triage priority.
 Use only the JSON you are given. Do not invent vitals or names.
 Call the person "the patient". Plain clinical language, under 120 words.
 Remind the nurse the note is a draft to edit.`;
+
+const safetyAssessmentSchema = z.object({
+  serious: z.boolean(),
+  reason: z.string().max(500),
+});
+
+export type SafetyAssessment = z.infer<typeof safetyAssessmentSchema>;
+
+function parseSafetyAssessment(text: string): SafetyAssessment | null {
+  const json = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+  const parsed = safetyAssessmentSchema.safeParse(JSON.parse(json));
+  return parsed.success ? parsed.data : null;
+}
+
+export async function analyzeVitals(summary: unknown): Promise<SafetyAssessment | null> {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) return null;
+  try {
+    const { GoogleGenAI } = await import("@google/genai");
+    const ai = new GoogleGenAI({ apiKey: key });
+    const response = await ai.models.generateContent({
+      model: process.env.GEMINI_MODEL ?? "gemini-2.5-flash",
+      contents: `You are a clinical safety screening assistant. Do not diagnose or change triage.
+Review only the de-identified wearable data below. Mark serious true only for a clearly dangerous current vital pattern that needs immediate nurse review. Treat poor signal, activity, and missing values as uncertainty, not danger.
+Return JSON only with exactly: {"serious": boolean, "reason": string}. Keep reason under 500 characters and say "AI screening only; verify the patient" in the reason when serious is true.
+JSON:
+${JSON.stringify(summary)}`,
+      config: { responseMimeType: "application/json" },
+    });
+    const text = response.text?.trim();
+    if (!text) return null;
+    return parseSafetyAssessment(text);
+  } catch (err) {
+    log.error({ err }, "gemini vital analysis failed");
+    return null;
+  }
+}
 
 export async function draftText(task: string, summary: unknown): Promise<{ text: string; source: "gemini" | "rules" }> {
   const key = process.env.GEMINI_API_KEY;

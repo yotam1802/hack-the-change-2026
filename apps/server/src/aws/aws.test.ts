@@ -42,6 +42,7 @@ describe("de-identification", () => {
       skinBaselineC: 33.4,
       officialTempC: 36.8,
       rollup: null,
+      latest: null,
       flags: [],
     });
     expect(JSON.stringify(summary)).not.toContain("Jane");

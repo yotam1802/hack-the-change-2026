@@ -18,6 +18,7 @@
     "@google/genai": "^1.0.0",
     "@waitwatch/shared": "*",
     "cors": "^2.8.5",
+    "dotenv": "^18.0.9",
     "express": "^4.21.2",
     "pg": "^8.13.1",
     "pino": "^9.6.0",

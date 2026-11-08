@@ -184,6 +184,7 @@ export type PatientView = z.infer<typeof patientViewSchema>;
 
 export const jobTypeSchema = z.enum([
   "explain_prompt",
+  "analyze_vitals",
   "reassessment_note",
   "handoff",
   "retrospective",
