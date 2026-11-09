@@ -1,8 +1,8 @@
 # WaitWatch — waiting-room monitoring prototype
 
-WaitWatch is a hackathon demonstration of a waiting-room dashboard using a React/Vite UI, an Express/TypeScript API, an embedded PGlite database (or PostgreSQL), a six-patient scripted simulator, and an experimental Arduino HW-827 pulse bridge.
+WaitWatch is a SOLUTION for a waiting-room dashboard using a React/Vite UI, an Express/TypeScript API, an embedded PGlite database (or PostgreSQL), a six-patient scripted simulator, and an experimental Arduino HW-827 pulse bridge.
 
-**Demo only. Not a medical device.** Experimental BPM estimates and simulated vital signs are not appropriate for diagnosis, triage, clinical alerts, or patient decisions. The Arduino HW-827 does not measure blood oxygen, skin temperature, falls, or motion. The dashboard's CTAS labels and alert rules are prototype features, not clinical validation.
+Experimental BPM estimates and simulated vital signs are not appropriate for diagnosis, triage, clinical alerts, or patient decisions. The Arduino HW-827 does not measure blood oxygen, skin temperature, falls, or motion. The dashboard's CTAS labels and alert rules are prototype features, not clinical validation.
 
 ## Quick start
 
